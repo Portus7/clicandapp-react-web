@@ -88,11 +88,11 @@ export default function AdminDashboard({ token, onLogout }) {
 
     // --- FILTRADO ---
     const filteredAgencies = agencies.filter(a =>
-        a.agency_name && a.agency_name.toLowerCase().includes(searchTerm.toLowerCase())
+        a.agency_id && a.agency_id.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const filteredSubaccounts = subaccounts.filter(s =>
-        s.location_name && s.location_name.toLowerCase().includes(searchTerm.toLowerCase())
+        s.location_id && s.location_id.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
