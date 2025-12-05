@@ -207,7 +207,7 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
     // NUEVAS FUNCIONES PARA SLOTS (AGREGAR / ELIMINAR / EDITAR)
     // ----------------------------------------------------
 
-    // 1. Agregar Slot
+    // 1. Agregar Slot esto es una preuba
     const handleAddSlot = async () => {
         setLoading(true);
         try {
