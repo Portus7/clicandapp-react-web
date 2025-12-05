@@ -114,7 +114,7 @@ export default function AdminDashboard({ token, onLogout }) {
                         </div>
                         <div>
                             <h1 className="text-lg font-bold tracking-tight leading-tight text-gray-800">
-                                {view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_id}`}
+                                {view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_name}`}
                             </h1>
                             {view === 'subaccounts' && <p className="text-xs text-gray-500">Gestionando {subaccounts.length} subcuentas</p>}
                         </div>
