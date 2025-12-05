@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Building2, Smartphone, Settings, Tag, Plus, Trash2,
-    X, RefreshCw
+    X, RefreshCw, Edit2
 } from 'lucide-react';
 
 // URL del Backend
@@ -17,14 +17,13 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // --- Helper para peticiones autenticadas (Reemplaza el fetch normal) ---
+    // --- Helper para peticiones autenticadas ---
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
             ...options,
             headers: {
                 ...options.headers,
                 'Content-Type': 'application/json',
-                // 👇 AQUÍ LA SOLUCIÓN: Usamos el token estándar en vez de x-admin-secret
                 'Authorization': `Bearer ${token}`
             }
         });
@@ -40,7 +39,6 @@ export default function AgencyDashboard({ token, onLogout }) {
     // --- Cargar Locations ---
     useEffect(() => {
         setLoading(true);
-        // Usamos authFetch en lugar de fetch directo
         authFetch(`/agency/locations?agencyId=${AGENCY_ID}`)
             .then(r => r.json())
             .then(data => {
@@ -155,7 +153,7 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
     useEffect(() => {
         setLoading(true);
         authFetch(`/agency/location-details/${location.location_id}`)
-            .then(r => r && r.json()) // r && r.json() evita error si authFetch devolvió null
+            .then(r => r && r.json())
             .then(data => {
                 if (data) {
                     setDetails(data);
@@ -205,6 +203,83 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
         }
     };
 
+    // ----------------------------------------------------
+    // NUEVAS FUNCIONES PARA SLOTS (AGREGAR / ELIMINAR / EDITAR)
+    // ----------------------------------------------------
+
+    // 1. Agregar Slot
+    const handleAddSlot = async () => {
+        setLoading(true);
+        try {
+            const res = await authFetch(`/agency/add-slot`, {
+                method: "POST",
+                body: JSON.stringify({ locationId: location.location_id })
+            });
+            if (res && res.ok) {
+                const data = await res.json();
+                // Agregamos el nuevo slot al estado local
+                setDetails(prev => ({
+                    ...prev,
+                    slots: [...prev.slots, {
+                        slot_id: data.slot_id,
+                        slot_name: data.slot_name,
+                        phone_number: null,
+                        priority: data.slot_id
+                    }]
+                }));
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error creando dispositivo");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // 2. Eliminar Slot
+    const handleDeleteSlot = async (slotId) => {
+        if (!confirm("¿Estás seguro de eliminar este dispositivo? Se cerrará la sesión de WhatsApp y desaparecerá del panel.")) return;
+
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}`, {
+                method: "DELETE"
+            });
+
+            if (res && res.ok) {
+                setDetails(prev => ({
+                    ...prev,
+                    slots: prev.slots.filter(s => s.slot_id !== slotId)
+                }));
+            } else {
+                alert("Error al eliminar el dispositivo.");
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    // 3. Editar Nombre Slot
+    const editSlotName = async (slotId, currentName) => {
+        const newName = prompt("Nuevo nombre para este dispositivo:", currentName || "");
+        if (newName !== null && newName !== currentName && newName.trim() !== "") {
+            const res = await authFetch(`/config-slot`, {
+                method: "POST",
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slot: slotId,
+                    slotName: newName
+                })
+            });
+
+            if (res && res.ok) {
+                setDetails(prev => ({
+                    ...prev,
+                    slots: prev.slots.map(s => s.slot_id === slotId ? { ...s, slot_name: newName } : s)
+                }));
+            }
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
@@ -234,28 +309,68 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
                         <div className="flex justify-center items-center h-40 text-indigo-600"><RefreshCw className="animate-spin" /></div>
                     ) : (
                         <>
-                            {/* VISTA: DISPOSITIVOS */}
+                            {/* VISTA: DISPOSITIVOS (ACTUALIZADA) */}
                             {activeTab === 'slots' && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {[1, 2, 3].map(num => {
-                                        const slotData = details.slots.find(s => s.slot_id === num);
-                                        const isConnected = !!slotData?.phone_number;
+                                <div className="space-y-4">
+                                    {/* Cabecera de la Tab con Botón Agregar */}
+                                    <div className="flex justify-between items-center mb-4 px-1">
+                                        <h3 className="text-sm font-bold text-gray-500 uppercase">Lista de Dispositivos</h3>
+                                        <button
+                                            onClick={handleAddSlot}
+                                            className="flex items-center gap-1 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700 transition shadow-sm"
+                                        >
+                                            <Plus size={14} /> Agregar Dispositivo
+                                        </button>
+                                    </div>
 
-                                        return (
-                                            <div key={num} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden group">
-                                                <div className={`absolute top-0 left-0 w-1 h-full ${isConnected ? 'bg-green-500' : 'bg-gray-200'}`}></div>
-                                                <div className="pl-3">
-                                                    <div className="flex justify-between items-center mb-2">
-                                                        <span className="font-bold text-gray-700 text-sm">{slotData?.slot_name || `Slot ${num}`}</span>
-                                                        {isConnected && <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_5px_rgba(34,197,94,0.6)]"></div>}
+                                    {details.slots.length === 0 ? (
+                                        <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl">
+                                            <p className="text-gray-400 text-sm">No hay dispositivos configurados.</p>
+                                            <p className="text-gray-400 text-xs">Haz clic en "Agregar Dispositivo" para empezar.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {details.slots.map(slot => {
+                                                const isConnected = !!slot.phone_number;
+                                                return (
+                                                    <div key={slot.slot_id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden group hover:border-indigo-300 transition">
+
+                                                        {/* Botón Eliminar (Visible en Hover) */}
+                                                        <button
+                                                            onClick={() => handleDeleteSlot(slot.slot_id)}
+                                                            className="absolute top-2 right-2 p-1.5 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-md transition opacity-0 group-hover:opacity-100 z-10"
+                                                            title="Eliminar Dispositivo"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+
+                                                        {/* Indicador lateral de estado */}
+                                                        <div className={`absolute top-0 left-0 w-1 h-full ${isConnected ? 'bg-green-500' : 'bg-gray-200'}`}></div>
+
+                                                        <div className="pl-3">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Slot {slot.slot_id}</span>
+                                                                {isConnected && <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_5px_rgba(34,197,94,0.6)]"></div>}
+                                                            </div>
+
+                                                            <div className="flex items-center gap-2 mb-3">
+                                                                <span className="font-bold text-gray-800 text-sm truncate" title={slot.slot_name}>
+                                                                    {slot.slot_name || `Dispositivo #${slot.slot_id}`}
+                                                                </span>
+                                                                <button onClick={() => editSlotName(slot.slot_id, slot.slot_name)} className="text-gray-300 hover:text-indigo-600 transition">
+                                                                    <Edit2 size={12} />
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="text-xs text-gray-500 font-mono bg-gray-50 inline-block px-2 py-1 rounded border border-gray-100">
+                                                                {isConnected ? `+${slot.phone_number}` : 'Desconectado'}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-xs text-gray-500 font-mono bg-gray-50 inline-block px-2 py-1 rounded border border-gray-100">
-                                                        {isConnected ? `+${slotData.phone_number}` : 'Desconectado'}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
+                                                )
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -264,7 +379,7 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
                                 <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
                                     <SettingRow
                                         label="Source Label"
-                                        desc='Añade "Source: +1234" al final de los mensajes.'
+                                        desc='Añade "Source: [Nombre]" al final de los mensajes.'
                                         checked={details.settings?.show_source_label ?? true}
                                         onChange={() => toggleSetting('show_source_label')}
                                     />
@@ -333,7 +448,7 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
     );
 }
 
-// UI HELPERS (Iguales que antes)
+// UI HELPERS
 const TabButton = ({ active, onClick, icon, label }) => (
     <button
         onClick={onClick}
