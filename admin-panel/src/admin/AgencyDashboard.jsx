@@ -7,7 +7,7 @@ import {
 // URL del Backend
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 
-// 👇 Recibimos el token y la función de logout como props
+// 👇 IMPORTANTE: Recibimos el 'token' y 'onLogout' desde App.jsx
 export default function AgencyDashboard({ token, onLogout }) {
     // Obtener Agency ID de la URL
     const queryParams = new URLSearchParams(window.location.search);
@@ -17,19 +17,20 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // --- Helper para peticiones autenticadas ---
+    // --- Helper para peticiones autenticadas (Reemplaza el fetch normal) ---
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
             ...options,
             headers: {
                 ...options.headers,
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` // ✅ Usamos el JWT aquí
+                // 👇 AQUÍ LA SOLUCIÓN: Usamos el token estándar en vez de x-admin-secret
+                'Authorization': `Bearer ${token}`
             }
         });
 
         if (res.status === 401 || res.status === 403) {
-            onLogout(); // 🚪 Si el token vence, cerramos sesión
+            onLogout(); // Si el token vence, cerramos sesión
             throw new Error("Sesión expirada o acceso denegado");
         }
 
@@ -39,6 +40,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     // --- Cargar Locations ---
     useEffect(() => {
         setLoading(true);
+        // Usamos authFetch en lugar de fetch directo
         authFetch(`/agency/locations?agencyId=${AGENCY_ID}`)
             .then(r => r.json())
             .then(data => {
@@ -49,7 +51,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 console.error(err);
                 setLoading(false);
             });
-    }, [AGENCY_ID, token]); // Agregamos token a dependencias
+    }, [AGENCY_ID, token]);
 
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900 font-sans p-6">
@@ -67,7 +69,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     </div>
                     <button
                         onClick={onLogout}
-                        className="text-sm text-red-600 hover:text-red-800 font-medium bg-red-50 px-4 py-2 rounded-lg"
+                        className="text-sm text-red-600 hover:text-red-800 font-medium bg-red-50 px-4 py-2 rounded-lg transition"
                     >
                         Cerrar Sesión
                     </button>
@@ -115,8 +117,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                 {selectedLocation && (
                     <LocationDetailsModal
                         location={selectedLocation}
-                        token={token}        // 👇 Pasamos el token al modal
-                        onLogout={onLogout}  // 👇 Pasamos logout al modal
+                        token={token}       // Pasamos el token
+                        onLogout={onLogout} // Pasamos logout
                         onClose={() => setSelectedLocation(null)}
                     />
                 )}
@@ -131,7 +133,7 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
     const [details, setDetails] = useState({ slots: [], keywords: [], settings: {} });
     const [loading, setLoading] = useState(true);
 
-    // Helper interno para el modal
+    // Helper interno reutilizable
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
             ...options,
@@ -143,7 +145,7 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
         });
         if (res.status === 401 || res.status === 403) {
             onLogout();
-            onClose(); // Cerramos modal también
+            onClose();
             return null;
         }
         return res;
@@ -153,7 +155,7 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
     useEffect(() => {
         setLoading(true);
         authFetch(`/agency/location-details/${location.location_id}`)
-            .then(r => r && r.json())
+            .then(r => r && r.json()) // r && r.json() evita error si authFetch devolvió null
             .then(data => {
                 if (data) {
                     setDetails(data);
@@ -183,11 +185,12 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
 
         if (!keyword || !tag) return;
 
-        const res = await authFetch(`/agency/keywords`, {
+        const res = await authFetch(`${API_URL}/agency/keywords`, {
             method: 'POST',
             body: JSON.stringify({ locationId: location.location_id, keyword, tag })
         });
-        if (res) {
+
+        if (res && res.ok) {
             const newRule = await res.json();
             setDetails(prev => ({ ...prev, keywords: [newRule, ...prev.keywords] }));
             e.target.reset();
@@ -196,8 +199,10 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
 
     // Borrar Keyword
     const deleteKeyword = async (id) => {
-        await authFetch(`/agency/keywords/${id}`, { method: 'DELETE' });
-        setDetails(prev => ({ ...prev, keywords: prev.keywords.filter(k => k.id !== id) }));
+        const res = await authFetch(`${API_URL}/agency/keywords/${id}`, { method: 'DELETE' });
+        if (res && res.ok) {
+            setDetails(prev => ({ ...prev, keywords: prev.keywords.filter(k => k.id !== id) }));
+        }
     };
 
     return (
@@ -328,7 +333,7 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
     );
 }
 
-// UI HELPERS
+// UI HELPERS (Iguales que antes)
 const TabButton = ({ active, onClick, icon, label }) => (
     <button
         onClick={onClick}
