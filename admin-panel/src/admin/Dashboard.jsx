@@ -414,7 +414,7 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
                     <div>
                         <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                             <div className="bg-indigo-100 p-1.5 rounded-md text-indigo-600"><Smartphone size={20} /></div>
-                            {location.location_id}
+                            {location.name || location.location_id}
                         </h2>
                         <p className="text-xs text-gray-400 mt-1 ml-1">Panel de configuración avanzado</p>
                     </div>
