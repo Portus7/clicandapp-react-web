@@ -1,366 +1,537 @@
 import React, { useState, useEffect } from 'react';
 import {
     Users, Settings, Plus, Search, CheckCircle,
-    AlertCircle, XCircle, MoreHorizontal, Save, RefreshCw
+    AlertCircle, X, RefreshCw, Building2, Smartphone,
+    ArrowLeft, Tag, Trash2
 } from 'lucide-react';
 
-// NOTA: En producción, pon esto en un .env
-const API_URL = import.meta.env.VITE_API_URL || "https://api-backend.tudominio.com";
-const ADMIN_SECRET = import.meta.env.VITE_ADMIN_SECRET || "admin123";
+// Configuración de entorno
+// .replace(/\/$/, "") elimina la barra al final si existe para evitar errores de doble slash
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
+const ADMIN_SECRET = (import.meta.env.VITE_ADMIN_SECRET || "admin123").trim();
 
 export default function AdminDashboard() {
-    const [tenants, setTenants] = useState([]);
+    const [view, setView] = useState('agencies'); // 'agencies' | 'subaccounts'
+    const [selectedAgency, setSelectedAgency] = useState(null);
+    const [selectedLocation, setSelectedLocation] = useState(null); // Para el Modal Detalle
+
+    // Datos
+    const [agencies, setAgencies] = useState([]);
+    const [subaccounts, setSubaccounts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
-    const [selectedTenant, setSelectedTenant] = useState(null); // Para el modal de edición
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-    // --- API CALLS ---
-    const fetchTenants = async () => {
+    // --- CARGA DE DATOS ---
+    const fetchAgencies = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/admin/tenants`, {
+            const res = await fetch(`${API_URL}/admin/agencies`, {
                 headers: { 'x-admin-secret': ADMIN_SECRET }
             });
             const data = await res.json();
-            if (Array.isArray(data)) setTenants(data);
+            setAgencies(Array.isArray(data) ? data : []);
         } catch (error) {
-            console.error("Error cargando clientes:", error);
+            console.error("Error cargando agencias:", error);
         } finally {
             setLoading(false);
         }
     };
 
-    const updateTenant = async (id, updates) => {
+    const fetchSubaccounts = async (agencyId) => {
+        setLoading(true);
         try {
-            await fetch(`${API_URL}/admin/tenants/${id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-admin-secret': ADMIN_SECRET
-                },
-                body: JSON.stringify(updates)
+            // Codificamos el ID por si tiene caracteres especiales
+            const safeId = encodeURIComponent(agencyId);
+            // Usamos el endpoint de tenants filtrando por agencia
+            const res = await fetch(`${API_URL}/admin/tenants?agencyId=${safeId}`, {
+                headers: { 'x-admin-secret': ADMIN_SECRET }
             });
-            // Actualizar estado local para feedback inmediato
-            setTenants(prev => prev.map(t => t.location_id === id ? { ...t, ...updates } : t));
-            if (selectedTenant) setSelectedTenant(prev => ({ ...prev, ...updates }));
+            const data = await res.json();
+            setSubaccounts(Array.isArray(data) ? data : []);
         } catch (error) {
-            alert("Error actualizando");
-        }
-    };
-
-    const createTenant = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const payload = {
-            locationId: formData.get('locationId'),
-            planName: formData.get('planName'),
-            days: 14 // Días por defecto
-        };
-
-        try {
-            await fetch(`${API_URL}/admin/tenants`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-admin-secret': ADMIN_SECRET
-                },
-                body: JSON.stringify(payload)
-            });
-            setIsCreateModalOpen(false);
-            fetchTenants();
-        } catch (error) {
-            alert("Error creando cliente");
+            console.error("Error cargando subcuentas:", error);
+        } finally {
+            setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchTenants();
+        fetchAgencies();
     }, []);
 
-    // --- FILTROS ---
-    const filteredTenants = tenants.filter(t =>
-        t.location_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (t.status && t.status.toLowerCase().includes(searchTerm.toLowerCase()))
+    // --- NAVEGACIÓN ---
+    const handleAgencyClick = (agency) => {
+        setSelectedAgency(agency);
+        setView('subaccounts');
+        setSearchTerm(""); // Limpiar búsqueda al cambiar de vista
+        fetchSubaccounts(agency.agency_id);
+    };
+
+    const handleBackToAgencies = () => {
+        setSelectedAgency(null);
+        setView('agencies');
+        setSearchTerm("");
+        setSubaccounts([]);
+        fetchAgencies(); // Refrescar datos generales
+    };
+
+    // --- FILTRADO ---
+    const filteredAgencies = agencies.filter(a =>
+        a.agency_id.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // --- RENDER HELPERS ---
-    const StatusBadge = ({ status }) => {
-        const styles = {
-            active: "bg-emerald-100 text-emerald-700 border-emerald-200",
-            trial: "bg-amber-100 text-amber-700 border-amber-200",
-            suspended: "bg-red-100 text-red-700 border-red-200",
-            cancelled: "bg-gray-100 text-gray-700 border-gray-200"
-        };
-        return (
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[status] || styles.cancelled}`}>
-                {status ? status.toUpperCase() : "UNKNOWN"}
-            </span>
-        );
-    };
+    const filteredSubaccounts = subaccounts.filter(s =>
+        s.location_id.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
-            {/* --- TOP BAR --- */}
-            <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+            {/* HEADER */}
+            <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">
+                        {view === 'subaccounts' && (
+                            <button onClick={handleBackToAgencies} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition text-gray-600">
+                                <ArrowLeft size={20} />
+                            </button>
+                        )}
+                        <div className="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-md">
                             CA
                         </div>
-                        <h1 className="text-lg font-semibold tracking-tight">Clic&App Admin</h1>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <button onClick={fetchTenants} className="p-2 text-gray-400 hover:text-indigo-600 transition">
-                            <RefreshCw size={20} />
-                        </button>
-                        <div className="w-8 h-8 rounded-full bg-gray-200 border border-gray-300 flex items-center justify-center text-sm font-medium text-gray-600">
-                            A
+                        <div>
+                            <h1 className="text-lg font-bold tracking-tight leading-tight text-gray-800">
+                                {view === 'agencies' ? 'Panel Maestro' : `Agencia: ${selectedAgency?.agency_id}`}
+                            </h1>
+                            {view === 'subaccounts' && <p className="text-xs text-gray-500">Gestionando {subaccounts.length} subcuentas</p>}
                         </div>
                     </div>
+                    <button
+                        onClick={() => view === 'agencies' ? fetchAgencies() : fetchSubaccounts(selectedAgency.agency_id)}
+                        className="p-2 text-gray-400 hover:text-indigo-600 transition bg-gray-50 rounded-full hover:bg-indigo-50"
+                        title="Recargar datos"
+                    >
+                        <RefreshCw size={20} />
+                    </button>
                 </div>
             </header>
 
-            {/* --- MAIN CONTENT --- */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-                {/* STATS OVERVIEW */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-500 font-medium">Total Clientes</p>
-                                <p className="text-3xl font-bold mt-1 text-gray-800">{tenants.length}</p>
-                            </div>
-                            <div className="p-3 bg-blue-50 rounded-lg text-blue-600"><Users size={24} /></div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-500 font-medium">Activos / Trial</p>
-                                <p className="text-3xl font-bold mt-1 text-emerald-600">
-                                    {tenants.filter(t => t.status === 'active' || t.status === 'trial').length}
-                                </p>
-                            </div>
-                            <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600"><CheckCircle size={24} /></div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-500 font-medium">Suspendidos</p>
-                                <p className="text-3xl font-bold mt-1 text-red-600">
-                                    {tenants.filter(t => t.status === 'suspended').length}
-                                </p>
-                            </div>
-                            <div className="p-3 bg-red-50 rounded-lg text-red-600"><AlertCircle size={24} /></div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ACTIONS BAR */}
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-                    <div className="relative w-full sm:w-96">
+                {/* BARRA DE BÚSQUEDA GLOBAL */}
+                <div className="mb-8">
+                    <div className="relative w-full max-w-md mx-auto sm:mx-0">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                         <input
                             type="text"
-                            placeholder="Buscar por Location ID..."
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                            placeholder={view === 'agencies' ? "Buscar agencia..." : "Buscar subcuenta..."}
+                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none shadow-sm text-sm"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <button
-                        onClick={() => setIsCreateModalOpen(true)}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-sm"
-                    >
-                        <Plus size={18} /> Nuevo Cliente
-                    </button>
                 </div>
 
-                {/* TABLE */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                                    <th className="px-6 py-4">Location ID / Cliente</th>
-                                    <th className="px-6 py-4">Plan</th>
-                                    <th className="px-6 py-4">Estado</th>
-                                    <th className="px-6 py-4">Fin del Trial</th>
-                                    <th className="px-6 py-4 text-right">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {loading ? (
-                                    <tr><td colSpan="5" className="p-8 text-center text-gray-500">Cargando datos...</td></tr>
-                                ) : filteredTenants.length === 0 ? (
-                                    <tr><td colSpan="5" className="p-8 text-center text-gray-500">No se encontraron clientes.</td></tr>
-                                ) : (
-                                    filteredTenants.map((tenant) => (
-                                        <tr key={tenant.location_id} className="hover:bg-gray-50 transition group">
-                                            <td className="px-6 py-4">
-                                                <div className="font-medium text-gray-900">{tenant.location_id}</div>
-                                                <div className="text-xs text-gray-400 mt-0.5">Registrado: {new Date(tenant.created_at).toLocaleDateString()}</div>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-gray-600 capitalize">
-                                                {tenant.plan_name || 'Desconocido'}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <StatusBadge status={tenant.status} />
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-gray-500">
-                                                {tenant.trial_ends_at ? new Date(tenant.trial_ends_at).toLocaleDateString() : '-'}
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <button
-                                                    onClick={() => setSelectedTenant(tenant)}
-                                                    className="text-gray-400 hover:text-indigo-600 p-2 rounded-full hover:bg-indigo-50 transition"
-                                                >
-                                                    <Settings size={18} />
-                                                </button>
-                                            </td>
+                {/* --- VISTA 1: LISTA DE AGENCIAS --- */}
+                {view === 'agencies' && (
+                    <>
+                        {loading ? (
+                            <div className="text-center py-20">
+                                <RefreshCw className="animate-spin mx-auto text-indigo-500 mb-2" size={32} />
+                                <p className="text-gray-400">Cargando agencias...</p>
+                            </div>
+                        ) : filteredAgencies.length === 0 ? (
+                            <div className="text-center py-12 bg-white rounded-xl border border-gray-200 border-dashed">
+                                <Building2 className="mx-auto text-gray-300 mb-3" size={48} />
+                                <p className="text-gray-500">No se encontraron agencias.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {filteredAgencies.map((agency) => (
+                                    <div
+                                        key={agency.agency_id}
+                                        onClick={() => handleAgencyClick(agency)}
+                                        className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-lg hover:border-indigo-300 hover:-translate-y-1 transition-all duration-200 cursor-pointer group relative overflow-hidden"
+                                    >
+                                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                                            <Building2 size={64} className="text-indigo-600" />
+                                        </div>
+
+                                        <div className="relative z-10">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <div className="bg-indigo-50 p-2.5 rounded-lg text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                                    <Building2 size={24} />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-bold text-lg text-gray-800 group-hover:text-indigo-700 truncate max-w-[180px]">
+                                                        {agency.agency_id}
+                                                    </h3>
+                                                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Agencia</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-50">
+                                                <div className="text-center">
+                                                    <p className="text-2xl font-bold text-gray-900">{agency.total_subaccounts}</p>
+                                                    <p className="text-xs text-gray-500 font-medium">Total</p>
+                                                </div>
+                                                <div className="h-8 w-px bg-gray-100"></div>
+                                                <div className="text-center">
+                                                    <p className="text-2xl font-bold text-emerald-600">{agency.active_subaccounts || 0}</p>
+                                                    <p className="text-xs text-gray-500 font-medium">Activas</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* --- VISTA 2: LISTA DE SUBCUENTAS --- */}
+                {view === 'subaccounts' && (
+                    <>
+                        {loading ? (
+                            <div className="text-center py-20">
+                                <RefreshCw className="animate-spin mx-auto text-indigo-500 mb-2" size={32} />
+                                <p className="text-gray-400">Cargando subcuentas...</p>
+                            </div>
+                        ) : filteredSubaccounts.length === 0 ? (
+                            <div className="text-center py-16 bg-white rounded-xl border border-gray-200 border-dashed">
+                                <Smartphone className="mx-auto text-gray-300 mb-3" size={48} />
+                                <p className="text-gray-500 text-lg">Esta agencia no tiene subcuentas vinculadas.</p>
+                                <p className="text-sm text-gray-400 mt-1">Instala la app en una subcuenta de GHL para verla aquí.</p>
+                            </div>
+                        ) : (
+                            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
+                                        <tr>
+                                            <th className="px-6 py-4">Location ID</th>
+                                            <th className="px-6 py-4">Estado</th>
+                                            <th className="px-6 py-4">Plan</th>
+                                            <th className="px-6 py-4">Creado</th>
+                                            <th className="px-6 py-4 text-right">Acciones</th>
                                         </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {filteredSubaccounts.map(sub => (
+                                            <tr key={sub.location_id} className="hover:bg-indigo-50/30 transition duration-150">
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="bg-gray-100 p-2 rounded-lg text-gray-500">
+                                                            <Smartphone size={18} />
+                                                        </div>
+                                                        <div className="font-medium text-gray-900">{sub.location_id}</div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${sub.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                            sub.status === 'trial' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                                'bg-red-50 text-red-700 border-red-200'
+                                                        }`}>
+                                                        {sub.status === 'active' && <CheckCircle size={12} className="mr-1" />}
+                                                        {sub.status?.toUpperCase()}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-600 capitalize">{sub.plan_name || 'Trial'}</td>
+                                                <td className="px-6 py-4 text-sm text-gray-500 tabular-nums">{new Date(sub.created_at).toLocaleDateString()}</td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button
+                                                        onClick={() => setSelectedLocation(sub)}
+                                                        className="inline-flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 hover:text-indigo-600 hover:border-indigo-600 px-3 py-1.5 rounded-lg text-sm font-medium transition shadow-sm"
+                                                    >
+                                                        <Settings size={14} /> Gestionar
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* --- MODAL DETALLES (EL MISMO QUE DISEÑAMOS PARA AGENCIAS) --- */}
+                {selectedLocation && (
+                    <LocationDetailsModal
+                        location={selectedLocation}
+                        onClose={() => setSelectedLocation(null)}
+                    />
+                )}
             </main>
-
-            {/* --- EDIT MODAL (SLIDE OVER) --- */}
-            {selectedTenant && (
-                <div className="fixed inset-0 z-50 flex justify-end">
-                    <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setSelectedTenant(null)}></div>
-                    <div className="relative w-full max-w-md bg-white h-full shadow-2xl p-6 overflow-y-auto animate-in slide-in-from-right duration-300">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-gray-800">Configuración</h2>
-                            <button onClick={() => setSelectedTenant(null)} className="p-1 hover:bg-gray-100 rounded-full"><XCircle size={24} className="text-gray-400" /></button>
-                        </div>
-
-                        <div className="space-y-6">
-                            {/* Info Card */}
-                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                <p className="text-xs text-gray-500 uppercase font-bold mb-1">ID del Cliente</p>
-                                <p className="font-mono text-sm text-gray-700 break-all">{selectedTenant.location_id}</p>
-                            </div>
-
-                            {/* Status Control */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Estado de Suscripción</label>
-                                <select
-                                    className="w-full border border-gray-300 rounded-lg p-2.5 bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    value={selectedTenant.status}
-                                    onChange={(e) => updateTenant(selectedTenant.location_id, { status: e.target.value })}
-                                >
-                                    <option value="active">Activo (Pagado)</option>
-                                    <option value="trial">Periodo de Prueba</option>
-                                    <option value="suspended">Suspendido (Falta Pago)</option>
-                                    <option value="cancelled">Cancelado</option>
-                                </select>
-                            </div>
-
-                            <hr className="border-gray-100" />
-
-                            {/* Feature Toggles */}
-                            <div>
-                                <h3 className="text-md font-semibold text-gray-800 mb-4">Funcionalidades (Settings)</h3>
-                                <div className="space-y-4">
-
-                                    {/* Toggle 1: Source Label */}
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-700">Mostrar "Source: +1234"</p>
-                                            <p className="text-xs text-gray-500">Añade la firma al final del mensaje.</p>
-                                        </div>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={selectedTenant.settings?.show_source_label ?? true}
-                                                onChange={(e) => {
-                                                    const newSettings = { ...selectedTenant.settings, show_source_label: e.target.checked };
-                                                    updateTenant(selectedTenant.location_id, { settings: newSettings });
-                                                }}
-                                            />
-                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                                        </label>
-                                    </div>
-
-                                    {/* Toggle 2: Transcribe Audio */}
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-700">IA Transcripción de Audio</p>
-                                            <p className="text-xs text-gray-500">Usa OpenAI Whisper para notas de voz.</p>
-                                        </div>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={selectedTenant.settings?.transcribe_audio ?? true}
-                                                onChange={(e) => {
-                                                    const newSettings = { ...selectedTenant.settings, transcribe_audio: e.target.checked };
-                                                    updateTenant(selectedTenant.location_id, { settings: newSettings });
-                                                }}
-                                            />
-                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                                        </label>
-                                    </div>
-
-                                    {/* Toggle 3: Create Unknown Contacts */}
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-700">Crear Contactos Desconocidos</p>
-                                            <p className="text-xs text-gray-500">Registrar en GHL si no existen.</p>
-                                        </div>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={selectedTenant.settings?.create_unknown_contacts ?? true}
-                                                onChange={(e) => {
-                                                    const newSettings = { ...selectedTenant.settings, create_unknown_contacts: e.target.checked };
-                                                    updateTenant(selectedTenant.location_id, { settings: newSettings });
-                                                }}
-                                            />
-                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                                        </label>
-                                    </div>
-
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* --- CREATE MODAL --- */}
-            {isCreateModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-                        <h2 className="text-lg font-bold mb-4">Registrar Nuevo Cliente</h2>
-                        <form onSubmit={createTenant} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">GoHighLevel Location ID</label>
-                                <input name="locationId" required type="text" placeholder="Ej: ve9EPMs..." className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Plan Inicial</label>
-                                <select name="planName" className="w-full border border-gray-300 rounded-lg p-2 bg-white outline-none">
-                                    <option value="trial">Trial (Prueba Gratuita)</option>
-                                    <option value="pro">Pro (Pago)</option>
-                                </select>
-                            </div>
-                            <div className="flex gap-3 mt-6">
-                                <button type="button" onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancelar</button>
-                                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md">Registrar</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
+
+// ---------------------------------------------------------------------
+// COMPONENTE MODAL DE DETALLES (Reutilizable y Completo)
+// ---------------------------------------------------------------------
+function LocationDetailsModal({ location, onClose }) {
+    const [activeTab, setActiveTab] = useState('slots'); // slots | settings | keywords
+    const [details, setDetails] = useState({ slots: [], keywords: [], settings: {} });
+    const [loading, setLoading] = useState(true);
+
+    // Cargar datos completos de la location
+    useEffect(() => {
+        setLoading(true);
+        fetch(`${API_URL}/agency/location-details/${location.location_id}`)
+            .then(r => r.json())
+            .then(data => {
+                setDetails(data);
+                setLoading(false);
+            })
+            .catch(console.error);
+    }, [location]);
+
+    // --- ACCIONES ---
+
+    // 1. Guardar Settings
+    const toggleSetting = async (key) => {
+        const newSettings = { ...details.settings, [key]: !details.settings[key] };
+        setDetails(prev => ({ ...prev, settings: newSettings }));
+
+        await fetch(`${API_URL}/agency/settings/${location.location_id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ settings: newSettings })
+        });
+    };
+
+    // 2. Agregar Keyword
+    const handleAddKeyword = async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const keyword = formData.get('keyword');
+        const tag = formData.get('tag');
+
+        if (!keyword || !tag) return;
+
+        const res = await fetch(`${API_URL}/agency/keywords`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ locationId: location.location_id, keyword, tag })
+        });
+        const newRule = await res.json();
+        setDetails(prev => ({ ...prev, keywords: [newRule, ...prev.keywords] }));
+        e.target.reset();
+    };
+
+    // 3. Borrar Keyword
+    const deleteKeyword = async (id) => {
+        await fetch(`${API_URL}/agency/keywords/${id}`, { method: 'DELETE' });
+        setDetails(prev => ({ ...prev, keywords: prev.keywords.filter(k => k.id !== id) }));
+    };
+
+    // 4. Editar Nombre de Slot
+    const editSlotName = async (slotId, currentName) => {
+        const newName = prompt("Nombre para este dispositivo (Ej: Ventas, Soporte):", currentName || "");
+        if (newName !== null && newName !== currentName) {
+            await fetch(`${API_URL}/config-slot`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slot: slotId,
+                    slotName: newName
+                })
+            });
+            // Actualizar estado local
+            setDetails(prev => ({
+                ...prev,
+                slots: prev.slots.map(s => s.slot_id === slotId ? { ...s, slot_name: newName } : s)
+            }));
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 transition-opacity" style={{ zIndex: 9999 }}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border border-gray-200">
+
+                {/* Modal Header */}
+                <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            <div className="bg-indigo-100 p-1.5 rounded-md text-indigo-600"><Smartphone size={20} /></div>
+                            {location.location_id}
+                        </h2>
+                        <p className="text-xs text-gray-400 mt-1 ml-1">Panel de configuración avanzado</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition"><X size={22} /></button>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex border-b border-gray-100 px-6 bg-gray-50/50">
+                    <TabButton active={activeTab === 'slots'} onClick={() => setActiveTab('slots')} icon={<Smartphone size={16} />} label="Dispositivos" />
+                    <TabButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<Settings size={16} />} label="Configuración" />
+                    <TabButton active={activeTab === 'keywords'} onClick={() => setActiveTab('keywords')} icon={<Tag size={16} />} label="Palabras Clave" />
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-6 bg-gray-50/30">
+                    {loading ? (
+                        <div className="flex justify-center items-center h-40 text-indigo-600"><RefreshCw className="animate-spin" /></div>
+                    ) : (
+                        <>
+                            {/* --- TAB 1: DISPOSITIVOS --- */}
+                            {activeTab === 'slots' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {[1, 2, 3].map(num => {
+                                        const slot = details.slots.find(s => s.slot_id === num);
+                                        const isConnected = !!slot?.phone_number;
+
+                                        return (
+                                            <div key={num} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition flex flex-col justify-between group">
+                                                <div>
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-400'}`}></div>
+                                                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Slot {num}</span>
+                                                        </div>
+                                                        {isConnected && (
+                                                            <button onClick={() => editSlotName(num, slot?.slot_name)} className="text-gray-300 hover:text-indigo-600 transition p-1">
+                                                                <Settings size={14} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    <h4 className="font-bold text-gray-800 text-lg mb-1">
+                                                        {slot?.slot_name || `Dispositivo #${num}`}
+                                                    </h4>
+
+                                                    <div className="text-sm text-gray-500 font-mono bg-gray-50 inline-block px-2 py-1 rounded mb-4 border border-gray-100">
+                                                        {isConnected ? `+${slot.phone_number}` : 'Sin vincular'}
+                                                    </div>
+                                                </div>
+
+                                                <div className={`text-xs font-medium px-3 py-1.5 rounded-lg text-center border ${isConnected ? 'bg-green-50 text-green-700 border-green-100' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
+                                                    {isConnected ? '● ONLINE' : '○ DESCONECTADO'}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+
+                            {/* --- TAB 2: SETTINGS --- */}
+                            {activeTab === 'settings' && (
+                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-8">
+                                    <SettingRow
+                                        label="Source Label"
+                                        desc="Añadir firma 'Source: ...' al final de los mensajes salientes."
+                                        checked={details.settings?.show_source_label ?? true}
+                                        onChange={() => toggleSetting('show_source_label')}
+                                        icon={<Tag size={20} className="text-gray-400" />}
+                                    />
+                                    <div className="h-px bg-gray-100"></div>
+                                    <SettingRow
+                                        label="IA Transcripción (Whisper)"
+                                        desc="Transcribir automáticamente audios recibidos en GHL a texto."
+                                        checked={details.settings?.transcribe_audio ?? true}
+                                        onChange={() => toggleSetting('transcribe_audio')}
+                                        icon={<div className="text-gray-400 font-serif italic font-bold text-lg">Tx</div>}
+                                    />
+                                    <div className="h-px bg-gray-100"></div>
+                                    <SettingRow
+                                        label="Capturar Desconocidos"
+                                        desc="Crear contacto en GHL automáticamente si un número nuevo escribe."
+                                        checked={details.settings?.create_unknown_contacts ?? true}
+                                        onChange={() => toggleSetting('create_unknown_contacts')}
+                                        icon={<Users size={20} className="text-gray-400" />}
+                                    />
+                                </div>
+                            )}
+
+                            {/* --- TAB 3: KEYWORDS --- */}
+                            {activeTab === 'keywords' && (
+                                <div className="space-y-6">
+                                    {/* Input Area */}
+                                    <div className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100">
+                                        <h3 className="text-sm font-bold text-indigo-900 mb-3 flex items-center gap-2">
+                                            <div className="bg-indigo-100 p-1 rounded"><Plus size={14} /></div> Nueva Regla de Etiquetado
+                                        </h3>
+                                        <form onSubmit={handleAddKeyword} className="flex flex-col sm:flex-row gap-3 items-start">
+                                            <div className="flex-1 w-full">
+                                                <input name="keyword" required placeholder="Si el mensaje contiene..." className="w-full border border-indigo-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white shadow-sm" />
+                                                <p className="text-[10px] text-indigo-400 mt-1 pl-1">Ej: "quiero precio", "info"</p>
+                                            </div>
+                                            <div className="flex-1 w-full">
+                                                <input name="tag" required placeholder="Agregar etiqueta en GHL..." className="w-full border border-indigo-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white shadow-sm" />
+                                                <p className="text-[10px] text-indigo-400 mt-1 pl-1">Ej: "interesado", "hot-lead"</p>
+                                            </div>
+                                            <button type="submit" className="w-full sm:w-auto bg-indigo-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-md transition active:scale-95">
+                                                Guardar Regla
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    {/* Table */}
+                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase text-xs tracking-wider">
+                                                <tr>
+                                                    <th className="px-5 py-3 font-semibold">Frase / Palabra Clave</th>
+                                                    <th className="px-5 py-3 font-semibold">Etiqueta a aplicar</th>
+                                                    <th className="px-5 py-3 text-right">Acción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {details.keywords.length === 0 ? (
+                                                    <tr><td colSpan="3" className="p-8 text-center text-gray-400 italic">No hay reglas configuradas aún.</td></tr>
+                                                ) : (
+                                                    details.keywords.map(k => (
+                                                        <tr key={k.id} className="hover:bg-gray-50 group transition-colors">
+                                                            <td className="px-5 py-3 font-medium text-gray-800">"{k.keyword}"</td>
+                                                            <td className="px-5 py-3">
+                                                                <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-xs font-bold border border-blue-100 shadow-sm">
+                                                                    {k.tag}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-5 py-3 text-right">
+                                                                <button onClick={() => deleteKeyword(k.id)} className="p-2 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// --- UI HELPERS ---
+const TabButton = ({ active, onClick, icon, label }) => (
+    <button
+        onClick={onClick}
+        className={`flex items-center gap-2 px-4 py-4 text-sm font-medium border-b-2 transition-colors ${active ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+    >
+        {icon} {label}
+    </button>
+);
+
+const SettingRow = ({ label, desc, checked, onChange, icon }) => (
+    <div className="flex items-center justify-between group">
+        <div className="flex gap-4 items-start">
+            <div className="mt-1 hidden sm:block">{icon}</div>
+            <div>
+                <p className="text-sm font-bold text-gray-800 group-hover:text-indigo-700 transition-colors">{label}</p>
+                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed max-w-xs">{desc}</p>
+            </div>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" className="sr-only peer" checked={checked} onChange={onChange} />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-indigo-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+        </label>
+    </div>
+);
