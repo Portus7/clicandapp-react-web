@@ -6,11 +6,10 @@ import {
 } from 'lucide-react';
 
 // Configuración de entorno
-// .replace(/\/$/, "") elimina la barra al final si existe para evitar errores de doble slash
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
-const ADMIN_SECRET = (import.meta.env.VITE_ADMIN_SECRET || "admin123").trim();
 
-export default function AdminDashboard() {
+// 👇 Recibimos token y onLogout
+export default function AdminDashboard({ token, onLogout }) {
     const [view, setView] = useState('agencies'); // 'agencies' | 'subaccounts'
     const [selectedAgency, setSelectedAgency] = useState(null);
     const [selectedLocation, setSelectedLocation] = useState(null); // Para el Modal Detalle
@@ -21,13 +20,29 @@ export default function AdminDashboard() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
 
+    // --- Helper Autenticado ---
+    const authFetch = async (endpoint, options = {}) => {
+        const res = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                ...options.headers,
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` // ✅ Token JWT
+            }
+        });
+
+        if (res.status === 401 || res.status === 403) {
+            onLogout();
+            throw new Error("Sesión expirada");
+        }
+        return res;
+    };
+
     // --- CARGA DE DATOS ---
     const fetchAgencies = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/admin/agencies`, {
-                headers: { 'x-admin-secret': ADMIN_SECRET }
-            });
+            const res = await authFetch(`/admin/agencies`);
             const data = await res.json();
             setAgencies(Array.isArray(data) ? data : []);
         } catch (error) {
@@ -40,12 +55,8 @@ export default function AdminDashboard() {
     const fetchSubaccounts = async (agencyId) => {
         setLoading(true);
         try {
-            // Codificamos el ID por si tiene caracteres especiales
             const safeId = encodeURIComponent(agencyId);
-            // Usamos el endpoint de tenants filtrando por agencia
-            const res = await fetch(`${API_URL}/admin/tenants?agencyId=${safeId}`, {
-                headers: { 'x-admin-secret': ADMIN_SECRET }
-            });
+            const res = await authFetch(`/admin/tenants?agencyId=${safeId}`);
             const data = await res.json();
             setSubaccounts(Array.isArray(data) ? data : []);
         } catch (error) {
@@ -63,7 +74,7 @@ export default function AdminDashboard() {
     const handleAgencyClick = (agency) => {
         setSelectedAgency(agency);
         setView('subaccounts');
-        setSearchTerm(""); // Limpiar búsqueda al cambiar de vista
+        setSearchTerm("");
         fetchSubaccounts(agency.agency_id);
     };
 
@@ -72,16 +83,16 @@ export default function AdminDashboard() {
         setView('agencies');
         setSearchTerm("");
         setSubaccounts([]);
-        fetchAgencies(); // Refrescar datos generales
+        fetchAgencies();
     };
 
     // --- FILTRADO ---
     const filteredAgencies = agencies.filter(a =>
-        a.agency_id.toLowerCase().includes(searchTerm.toLowerCase())
+        a.agency_id && a.agency_id.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const filteredSubaccounts = subaccounts.filter(s =>
-        s.location_id.toLowerCase().includes(searchTerm.toLowerCase())
+        s.location_id && s.location_id.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
@@ -105,13 +116,23 @@ export default function AdminDashboard() {
                             {view === 'subaccounts' && <p className="text-xs text-gray-500">Gestionando {subaccounts.length} subcuentas</p>}
                         </div>
                     </div>
-                    <button
-                        onClick={() => view === 'agencies' ? fetchAgencies() : fetchSubaccounts(selectedAgency.agency_id)}
-                        className="p-2 text-gray-400 hover:text-indigo-600 transition bg-gray-50 rounded-full hover:bg-indigo-50"
-                        title="Recargar datos"
-                    >
-                        <RefreshCw size={20} />
-                    </button>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => view === 'agencies' ? fetchAgencies() : fetchSubaccounts(selectedAgency.agency_id)}
+                            className="p-2 text-gray-400 hover:text-indigo-600 transition bg-gray-50 rounded-full hover:bg-indigo-50"
+                            title="Recargar datos"
+                        >
+                            <RefreshCw size={20} />
+                        </button>
+                        <div className="h-6 w-px bg-gray-200 mx-2"></div>
+                        <button
+                            onClick={onLogout}
+                            className="text-sm text-red-600 hover:text-red-800 font-medium px-3 py-1.5 rounded hover:bg-red-50 transition"
+                        >
+                            Salir
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -200,7 +221,6 @@ export default function AdminDashboard() {
                             <div className="text-center py-16 bg-white rounded-xl border border-gray-200 border-dashed">
                                 <Smartphone className="mx-auto text-gray-300 mb-3" size={48} />
                                 <p className="text-gray-500 text-lg">Esta agencia no tiene subcuentas vinculadas.</p>
-                                <p className="text-sm text-gray-400 mt-1">Instala la app en una subcuenta de GHL para verla aquí.</p>
                             </div>
                         ) : (
                             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -227,8 +247,8 @@ export default function AdminDashboard() {
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${sub.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                            sub.status === 'trial' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                                'bg-red-50 text-red-700 border-red-200'
+                                                        sub.status === 'trial' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                            'bg-red-50 text-red-700 border-red-200'
                                                         }`}>
                                                         {sub.status === 'active' && <CheckCircle size={12} className="mr-1" />}
                                                         {sub.status?.toUpperCase()}
@@ -253,10 +273,12 @@ export default function AdminDashboard() {
                     </>
                 )}
 
-                {/* --- MODAL DETALLES (EL MISMO QUE DISEÑAMOS PARA AGENCIAS) --- */}
+                {/* --- MODAL DETALLES --- */}
                 {selectedLocation && (
                     <LocationDetailsModal
                         location={selectedLocation}
+                        token={token}       // ✅ Pasa el token
+                        onLogout={onLogout} // ✅ Pasa logout
                         onClose={() => setSelectedLocation(null)}
                     />
                 )}
@@ -266,21 +288,41 @@ export default function AdminDashboard() {
 }
 
 // ---------------------------------------------------------------------
-// COMPONENTE MODAL DE DETALLES (Reutilizable y Completo)
+// COMPONENTE MODAL DE DETALLES (Actualizado con Auth)
 // ---------------------------------------------------------------------
-function LocationDetailsModal({ location, onClose }) {
-    const [activeTab, setActiveTab] = useState('slots'); // slots | settings | keywords
+function LocationDetailsModal({ location, onClose, token, onLogout }) {
+    const [activeTab, setActiveTab] = useState('slots');
     const [details, setDetails] = useState({ slots: [], keywords: [], settings: {} });
     const [loading, setLoading] = useState(true);
 
-    // Cargar datos completos de la location
+    // Helper fetch con auth para el modal
+    const authFetch = async (endpoint, options = {}) => {
+        const res = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                ...options.headers,
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (res.status === 401 || res.status === 403) {
+            onLogout();
+            onClose();
+            return null;
+        }
+        return res;
+    };
+
+    // Cargar datos completos
     useEffect(() => {
         setLoading(true);
-        fetch(`${API_URL}/agency/location-details/${location.location_id}`)
-            .then(r => r.json())
+        authFetch(`/agency/location-details/${location.location_id}`)
+            .then(r => r && r.json())
             .then(data => {
-                setDetails(data);
-                setLoading(false);
+                if (data) {
+                    setDetails(data);
+                    setLoading(false);
+                }
             })
             .catch(console.error);
     }, [location]);
@@ -292,9 +334,8 @@ function LocationDetailsModal({ location, onClose }) {
         const newSettings = { ...details.settings, [key]: !details.settings[key] };
         setDetails(prev => ({ ...prev, settings: newSettings }));
 
-        await fetch(`${API_URL}/agency/settings/${location.location_id}`, {
+        await authFetch(`/agency/settings/${location.location_id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ settings: newSettings })
         });
     };
@@ -308,29 +349,31 @@ function LocationDetailsModal({ location, onClose }) {
 
         if (!keyword || !tag) return;
 
-        const res = await fetch(`${API_URL}/agency/keywords`, {
+        const res = await authFetch(`/agency/keywords`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ locationId: location.location_id, keyword, tag })
         });
-        const newRule = await res.json();
-        setDetails(prev => ({ ...prev, keywords: [newRule, ...prev.keywords] }));
-        e.target.reset();
+        if (res && res.ok) {
+            const newRule = await res.json();
+            setDetails(prev => ({ ...prev, keywords: [newRule, ...prev.keywords] }));
+            e.target.reset();
+        }
     };
 
     // 3. Borrar Keyword
     const deleteKeyword = async (id) => {
-        await fetch(`${API_URL}/agency/keywords/${id}`, { method: 'DELETE' });
-        setDetails(prev => ({ ...prev, keywords: prev.keywords.filter(k => k.id !== id) }));
+        const res = await authFetch(`/agency/keywords/${id}`, { method: 'DELETE' });
+        if (res && res.ok) {
+            setDetails(prev => ({ ...prev, keywords: prev.keywords.filter(k => k.id !== id) }));
+        }
     };
 
     // 4. Editar Nombre de Slot
     const editSlotName = async (slotId, currentName) => {
         const newName = prompt("Nombre para este dispositivo (Ej: Ventas, Soporte):", currentName || "");
         if (newName !== null && newName !== currentName) {
-            await fetch(`${API_URL}/config-slot`, {
+            await authFetch(`/config-slot`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     locationId: location.location_id,
                     slot: slotId,
