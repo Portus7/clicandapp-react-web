@@ -1,37 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import {
     Building2, Smartphone, Settings, Tag, Plus, Trash2,
-    X, Save, CheckCircle, AlertCircle, Search
+    X, RefreshCw
 } from 'lucide-react';
 
-// URL del Backend
-const API_URL = import.meta.env.VITE_API_URL || "https://wa.clicandapp.com";
+// URL del Backend y Secreto
+const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
+// Usamos .trim() para evitar errores si se coló un espacio en el .env
+const ADMIN_SECRET = (import.meta.env.VITE_ADMIN_SECRET || "admin123").trim();
 
 export default function AgencyDashboard() {
-    // Simulamos obtener el Agency ID (en prod vendría por URL params o Auth context)
-    // ej: tudominio.com/agency?agencyId=...
+    // Obtener Agency ID de la URL
     const queryParams = new URLSearchParams(window.location.search);
     const AGENCY_ID = queryParams.get("agencyId") || "AGENCY_DEMO_ID";
 
     const [locations, setLocations] = useState([]);
-    const [selectedLocation, setSelectedLocation] = useState(null); // Para el Modal
+    const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(true);
 
     // --- Cargar Locations ---
     useEffect(() => {
-        fetch(`${API_URL}/agency/locations?agencyId=${AGENCY_ID}`)
-            .then(r => r.json())
+        setLoading(true);
+        // 👇 AQUÍ ESTÁ LA CLAVE: Agregar el header x-admin-secret
+        fetch(`${API_URL}/agency/locations?agencyId=${AGENCY_ID}`, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-admin-secret': ADMIN_SECRET
+            }
+        })
+            .then(r => {
+                if (r.status === 403) throw new Error("Acceso denegado: Revisa el VITE_ADMIN_SECRET");
+                return r.json();
+            })
             .then(data => {
                 if (Array.isArray(data)) setLocations(data);
                 setLoading(false);
             })
-            .catch(console.error);
+            .catch(err => {
+                console.error(err);
+                setLoading(false);
+            });
     }, [AGENCY_ID]);
 
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900 font-sans p-6">
             <div className="max-w-7xl mx-auto">
-
                 {/* Header */}
                 <div className="flex items-center gap-3 mb-8">
                     <div className="p-3 bg-indigo-600 rounded-lg text-white">
@@ -39,16 +52,16 @@ export default function AgencyDashboard() {
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold">Panel de Agencia</h1>
-                        <p className="text-gray-500 text-sm">Gestiona tus subcuentas y configuraciones de WhatsApp</p>
+                        <p className="text-gray-500 text-sm">Gestionando: {AGENCY_ID}</p>
                     </div>
                 </div>
 
                 {/* Grid de Locations */}
                 {loading ? (
-                    <p className="text-center py-10">Cargando subcuentas...</p>
+                    <p className="text-center py-10 text-gray-500">Cargando subcuentas...</p>
                 ) : locations.length === 0 ? (
-                    <div className="text-center py-10 bg-white rounded-xl border border-gray-200">
-                        <p className="text-gray-500">No hay subcuentas instaladas para esta agencia.</p>
+                    <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+                        <p className="text-gray-500">No hay subcuentas instaladas o acceso denegado.</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -73,9 +86,8 @@ export default function AgencyDashboard() {
                                     </div>
                                 </div>
                                 <div className="text-sm text-gray-500 flex justify-between items-center">
-                                    <span>Dispositivos conectados:</span>
-                                    {/* Aquí podrías poner lógica real de conteo si la tuvieras en el endpoint inicial */}
-                                    <span className="font-bold text-gray-800">Ver detalles →</span>
+                                    <span>Dispositivos: {loc.total_slots || 0}</span>
+                                    <span className="font-bold text-gray-800 text-xs">Gestionar →</span>
                                 </div>
                             </div>
                         ))}
@@ -89,22 +101,34 @@ export default function AgencyDashboard() {
                         onClose={() => setSelectedLocation(null)}
                     />
                 )}
-
             </div>
         </div>
     );
 }
 
 // --- SUB-COMPONENTE: MODAL DE DETALLES ---
+// También necesita el header en sus peticiones internas
 function LocationDetailsModal({ location, onClose }) {
-    const [activeTab, setActiveTab] = useState('slots'); // 'slots' | 'settings' | 'keywords'
+    const [activeTab, setActiveTab] = useState('slots');
     const [details, setDetails] = useState({ slots: [], keywords: [], settings: {} });
     const [loading, setLoading] = useState(true);
+
+    // Función helper para fetch con auth
+    const authFetch = (url, options = {}) => {
+        return fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                'Content-Type': 'application/json',
+                'x-admin-secret': ADMIN_SECRET
+            }
+        });
+    };
 
     // Cargar detalles al abrir
     useEffect(() => {
         setLoading(true);
-        fetch(`${API_URL}/agency/location-details/${location.location_id}`)
+        authFetch(`${API_URL}/agency/location-details/${location.location_id}`)
             .then(r => r.json())
             .then(data => {
                 setDetails(data);
@@ -118,10 +142,8 @@ function LocationDetailsModal({ location, onClose }) {
         const newSettings = { ...details.settings, [key]: !details.settings[key] };
         setDetails(prev => ({ ...prev, settings: newSettings }));
 
-        // Guardar en backend
-        await fetch(`${API_URL}/agency/settings/${location.location_id}`, {
+        await authFetch(`${API_URL}/agency/settings/${location.location_id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ settings: newSettings })
         });
     };
@@ -135,9 +157,8 @@ function LocationDetailsModal({ location, onClose }) {
 
         if (!keyword || !tag) return;
 
-        const res = await fetch(`${API_URL}/agency/keywords`, {
+        const res = await authFetch(`${API_URL}/agency/keywords`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ locationId: location.location_id, keyword, tag })
         });
         const newRule = await res.json();
@@ -147,58 +168,58 @@ function LocationDetailsModal({ location, onClose }) {
 
     // Borrar Keyword
     const deleteKeyword = async (id) => {
-        await fetch(`${API_URL}/agency/keywords/${id}`, { method: 'DELETE' });
+        await authFetch(`${API_URL}/agency/keywords/${id}`, { method: 'DELETE' });
         setDetails(prev => ({ ...prev, keywords: prev.keywords.filter(k => k.id !== id) }));
     };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
 
                 {/* Header Modal */}
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white">
                     <div>
-                        <h2 className="text-xl font-bold text-gray-800">Administrar Subcuenta</h2>
-                        <p className="text-sm text-gray-500 font-mono">{location.location_id}</p>
+                        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            <Smartphone size={20} className="text-indigo-600" />
+                            {location.location_id}
+                        </h2>
+                        <p className="text-xs text-gray-400">Configuración de Subcuenta</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><X size={24} /></button>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-gray-100 px-6">
-                    <TabButton active={activeTab === 'slots'} onClick={() => setActiveTab('slots')} icon={<Smartphone size={18} />} label="Dispositivos" />
-                    <TabButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<Settings size={18} />} label="Configuración" />
-                    <TabButton active={activeTab === 'keywords'} onClick={() => setActiveTab('keywords')} icon={<Tag size={18} />} label="Palabras Clave" />
+                <div className="flex border-b border-gray-100 px-6 bg-gray-50">
+                    <TabButton active={activeTab === 'slots'} onClick={() => setActiveTab('slots')} icon={<Smartphone size={16} />} label="Dispositivos" />
+                    <TabButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<Settings size={16} />} label="Configuración" />
+                    <TabButton active={activeTab === 'keywords'} onClick={() => setActiveTab('keywords')} icon={<Tag size={16} />} label="Palabras Clave" />
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+                <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
                     {loading ? (
-                        <div className="flex justify-center items-center h-40"><RefreshCw className="animate-spin text-indigo-600" /></div>
+                        <div className="flex justify-center items-center h-40 text-indigo-600"><RefreshCw className="animate-spin" /></div>
                     ) : (
                         <>
                             {/* VISTA: DISPOSITIVOS */}
                             {activeTab === 'slots' && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Siempre mostramos 3 slots por defecto o los que vengan de DB */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {[1, 2, 3].map(num => {
                                         const slotData = details.slots.find(s => s.slot_id === num);
-                                        // Simulamos estado conectado si hay numero (en prod mejorar con ping real)
                                         const isConnected = !!slotData?.phone_number;
 
                                         return (
-                                            <div key={num} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                                                <div className="flex justify-between items-center mb-3">
-                                                    <span className="font-bold text-gray-700">{slotData?.slot_name || `Dispositivo #${num}`}</span>
-                                                    <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium ${isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                        <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                                                        {isConnected ? 'Conectado' : 'Desconectado'}
-                                                    </span>
+                                            <div key={num} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden group">
+                                                <div className={`absolute top-0 left-0 w-1 h-full ${isConnected ? 'bg-green-500' : 'bg-gray-200'}`}></div>
+                                                <div className="pl-3">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="font-bold text-gray-700 text-sm">{slotData?.slot_name || `Slot ${num}`}</span>
+                                                        {isConnected && <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_5px_rgba(34,197,94,0.6)]"></div>}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 font-mono bg-gray-50 inline-block px-2 py-1 rounded border border-gray-100">
+                                                        {isConnected ? `+${slotData.phone_number}` : 'Desconectado'}
+                                                    </div>
                                                 </div>
-                                                <div className="text-sm text-gray-600 mb-2">
-                                                    {isConnected ? `📞 +${slotData.phone_number}` : 'Esperando vinculación...'}
-                                                </div>
-                                                {/* Aquí podrías agregar botón para editar nombre del slot */}
                                             </div>
                                         )
                                     })}
@@ -207,61 +228,61 @@ function LocationDetailsModal({ location, onClose }) {
 
                             {/* VISTA: SETTINGS */}
                             {activeTab === 'settings' && (
-                                <div className="bg-white p-6 rounded-xl border border-gray-200 space-y-6">
+                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
                                     <SettingRow
-                                        label="Mostrar Source Label"
+                                        label="Source Label"
                                         desc='Añade "Source: +1234" al final de los mensajes.'
                                         checked={details.settings?.show_source_label ?? true}
                                         onChange={() => toggleSetting('show_source_label')}
                                     />
+                                    <div className="h-px bg-gray-100"></div>
                                     <SettingRow
-                                        label="IA Transcripción de Audio"
-                                        desc='Usa OpenAI para transcribir notas de voz recibidas.'
+                                        label="IA Transcripción"
+                                        desc='Transcribir audios con Whisper OpenAI.'
                                         checked={details.settings?.transcribe_audio ?? true}
                                         onChange={() => toggleSetting('transcribe_audio')}
                                     />
+                                    <div className="h-px bg-gray-100"></div>
                                     <SettingRow
-                                        label="Crear Contactos Nuevos"
-                                        desc='Registrar números desconocidos en GHL automáticamente.'
+                                        label="Crear Contactos"
+                                        desc='Registrar números nuevos en GHL.'
                                         checked={details.settings?.create_unknown_contacts ?? true}
                                         onChange={() => toggleSetting('create_unknown_contacts')}
                                     />
                                 </div>
                             )}
 
-                            {/* VISTA: KEYWORDS (NUEVO) */}
+                            {/* VISTA: KEYWORDS */}
                             {activeTab === 'keywords' && (
                                 <div className="space-y-6">
-                                    {/* Formulario de Agregar */}
-                                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                        <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2"><Plus size={16} /> Nueva Regla</h3>
-                                        <form onSubmit={handleAddKeyword} className="flex flex-col sm:flex-row gap-3">
-                                            <input name="keyword" required placeholder="Si el mensaje contiene..." className="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                            <input name="tag" required placeholder="Agregar etiqueta en GHL..." className="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                            <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">Guardar</button>
+                                    <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                        <h3 className="text-xs font-bold text-indigo-800 mb-2 uppercase tracking-wide">Nueva Regla</h3>
+                                        <form onSubmit={handleAddKeyword} className="flex gap-2">
+                                            <input name="keyword" required placeholder='Ej: "info precio"' className="flex-1 border-0 rounded-lg p-2 text-sm shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-500" />
+                                            <input name="tag" required placeholder='Tag GHL (Ej: "interesado")' className="flex-1 border-0 rounded-lg p-2 text-sm shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-500" />
+                                            <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm"><Plus size={18} /></button>
                                         </form>
                                     </div>
 
-                                    {/* Lista de Keywords */}
-                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                                         <table className="w-full text-left text-sm">
-                                            <thead className="bg-gray-50 border-b border-gray-200">
+                                            <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase text-xs">
                                                 <tr>
-                                                    <th className="px-4 py-3 font-medium text-gray-500">Palabra Clave</th>
-                                                    <th className="px-4 py-3 font-medium text-gray-500">Etiqueta (Tag)</th>
+                                                    <th className="px-4 py-3 font-semibold">Si dice...</th>
+                                                    <th className="px-4 py-3 font-semibold">Agregar Tag</th>
                                                     <th className="px-4 py-3 text-right"></th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100">
                                                 {details.keywords.length === 0 ? (
-                                                    <tr><td colSpan="3" className="p-4 text-center text-gray-400">No hay reglas configuradas.</td></tr>
+                                                    <tr><td colSpan="3" className="p-6 text-center text-gray-400 italic">Sin reglas de etiquetado.</td></tr>
                                                 ) : (
                                                     details.keywords.map(k => (
-                                                        <tr key={k.id} className="hover:bg-gray-50">
-                                                            <td className="px-4 py-3 font-medium text-gray-800">"{k.keyword}"</td>
-                                                            <td className="px-4 py-3"><span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">{k.tag}</span></td>
+                                                        <tr key={k.id} className="hover:bg-gray-50 transition">
+                                                            <td className="px-4 py-3 font-medium text-gray-900">"{k.keyword}"</td>
+                                                            <td className="px-4 py-3"><span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold">{k.tag}</span></td>
                                                             <td className="px-4 py-3 text-right">
-                                                                <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
+                                                                <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-600 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
                                                             </td>
                                                         </tr>
                                                     ))
@@ -279,11 +300,11 @@ function LocationDetailsModal({ location, onClose }) {
     );
 }
 
-// --- UI COMPONENTS HELPERS ---
+// UI HELPERS
 const TabButton = ({ active, onClick, icon, label }) => (
     <button
         onClick={onClick}
-        className={`flex items-center gap-2 px-4 py-4 text-sm font-medium border-b-2 transition ${active ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${active ? 'border-indigo-600 text-indigo-600 bg-white' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
             }`}
     >
         {icon} {label}
@@ -293,17 +314,12 @@ const TabButton = ({ active, onClick, icon, label }) => (
 const SettingRow = ({ label, desc, checked, onChange }) => (
     <div className="flex items-center justify-between">
         <div>
-            <p className="text-sm font-medium text-gray-800">{label}</p>
-            <p className="text-xs text-gray-500">{desc}</p>
+            <p className="text-sm font-bold text-gray-800">{label}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
         </div>
         <label className="relative inline-flex items-center cursor-pointer">
             <input type="checkbox" className="sr-only peer" checked={checked} onChange={onChange} />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            <div className="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-indigo-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
         </label>
     </div>
-);
-
-// Icono de carga auxiliar (si no usas lucide, usa svg)
-const RefreshCw = ({ className }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M3 21v-5h5" /></svg>
 );
