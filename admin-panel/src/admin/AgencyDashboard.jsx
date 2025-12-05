@@ -93,7 +93,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
                                         <h3 className="font-bold text-lg text-gray-800 group-hover:text-indigo-600 transition">
-                                            {loc.location_id}
+                                            {loc.name || loc.location_name || loc.location_id}
                                         </h3>
                                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${loc.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                                             }`}>
@@ -214,7 +214,7 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
                     <div>
                         <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                             <Smartphone size={20} className="text-indigo-600" />
-                            {location.location_id}
+                            {location.name || location.location_name || location.location_id}
                         </h2>
                         <p className="text-xs text-gray-400">Configuración de Subcuenta</p>
                     </div>
