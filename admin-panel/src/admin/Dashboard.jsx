@@ -88,11 +88,11 @@ export default function AdminDashboard({ token, onLogout }) {
 
     // --- FILTRADO ---
     const filteredAgencies = agencies.filter(a =>
-        a.agency_id && a.agency_id.toLowerCase().includes(searchTerm.toLowerCase())
+        a.agency_name && a.agency_name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const filteredSubaccounts = subaccounts.filter(s =>
-        s.location_id && s.location_id.toLowerCase().includes(searchTerm.toLowerCase())
+        s.location_name && s.location_name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
@@ -184,7 +184,7 @@ export default function AdminDashboard({ token, onLogout }) {
                                                 </div>
                                                 <div>
                                                     <h3 className="font-bold text-lg text-gray-800 group-hover:text-indigo-700 truncate max-w-[180px]">
-                                                        {agency.agency_id}
+                                                        {agency.agency_name || agency.agency_id}
                                                     </h3>
                                                     <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">Agencia</p>
                                                 </div>

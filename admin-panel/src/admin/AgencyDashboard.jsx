@@ -93,7 +93,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
                                         <h3 className="font-bold text-lg text-gray-800 group-hover:text-indigo-600 transition">
-                                            {loc.location_id}
+                                            {loc.name}
                                         </h3>
                                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${loc.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                                             }`}>
