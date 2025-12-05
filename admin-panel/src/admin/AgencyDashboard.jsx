@@ -4,12 +4,11 @@ import {
     X, RefreshCw
 } from 'lucide-react';
 
-// URL del Backend y Secreto
+// URL del Backend
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
-// Usamos .trim() para evitar errores si se coló un espacio en el .env
-const ADMIN_SECRET = (import.meta.env.VITE_ADMIN_SECRET || "admin123").trim();
 
-export default function AgencyDashboard() {
+// 👇 Recibimos el token y la función de logout como props
+export default function AgencyDashboard({ token, onLogout }) {
     // Obtener Agency ID de la URL
     const queryParams = new URLSearchParams(window.location.search);
     const AGENCY_ID = queryParams.get("agencyId") || "AGENCY_DEMO_ID";
@@ -18,20 +17,30 @@ export default function AgencyDashboard() {
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // --- Helper para peticiones autenticadas ---
+    const authFetch = async (endpoint, options = {}) => {
+        const res = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                ...options.headers,
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` // ✅ Usamos el JWT aquí
+            }
+        });
+
+        if (res.status === 401 || res.status === 403) {
+            onLogout(); // 🚪 Si el token vence, cerramos sesión
+            throw new Error("Sesión expirada o acceso denegado");
+        }
+
+        return res;
+    };
+
     // --- Cargar Locations ---
     useEffect(() => {
         setLoading(true);
-        // 👇 AQUÍ ESTÁ LA CLAVE: Agregar el header x-admin-secret
-        fetch(`${API_URL}/agency/locations?agencyId=${AGENCY_ID}`, {
-            headers: {
-                'Content-Type': 'application/json',
-                'x-admin-secret': ADMIN_SECRET
-            }
-        })
-            .then(r => {
-                if (r.status === 403) throw new Error("Acceso denegado: Revisa el VITE_ADMIN_SECRET");
-                return r.json();
-            })
+        authFetch(`/agency/locations?agencyId=${AGENCY_ID}`)
+            .then(r => r.json())
             .then(data => {
                 if (Array.isArray(data)) setLocations(data);
                 setLoading(false);
@@ -40,20 +49,28 @@ export default function AgencyDashboard() {
                 console.error(err);
                 setLoading(false);
             });
-    }, [AGENCY_ID]);
+    }, [AGENCY_ID, token]); // Agregamos token a dependencias
 
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900 font-sans p-6">
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
-                <div className="flex items-center gap-3 mb-8">
-                    <div className="p-3 bg-indigo-600 rounded-lg text-white">
-                        <Building2 size={24} />
+                <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 bg-indigo-600 rounded-lg text-white">
+                            <Building2 size={24} />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold">Panel de Agencia</h1>
+                            <p className="text-gray-500 text-sm">Gestionando: {AGENCY_ID}</p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-2xl font-bold">Panel de Agencia</h1>
-                        <p className="text-gray-500 text-sm">Gestionando: {AGENCY_ID}</p>
-                    </div>
+                    <button
+                        onClick={onLogout}
+                        className="text-sm text-red-600 hover:text-red-800 font-medium bg-red-50 px-4 py-2 rounded-lg"
+                    >
+                        Cerrar Sesión
+                    </button>
                 </div>
 
                 {/* Grid de Locations */}
@@ -98,6 +115,8 @@ export default function AgencyDashboard() {
                 {selectedLocation && (
                     <LocationDetailsModal
                         location={selectedLocation}
+                        token={token}        // 👇 Pasamos el token al modal
+                        onLogout={onLogout}  // 👇 Pasamos logout al modal
                         onClose={() => setSelectedLocation(null)}
                     />
                 )}
@@ -107,32 +126,39 @@ export default function AgencyDashboard() {
 }
 
 // --- SUB-COMPONENTE: MODAL DE DETALLES ---
-// También necesita el header en sus peticiones internas
-function LocationDetailsModal({ location, onClose }) {
+function LocationDetailsModal({ location, onClose, token, onLogout }) {
     const [activeTab, setActiveTab] = useState('slots');
     const [details, setDetails] = useState({ slots: [], keywords: [], settings: {} });
     const [loading, setLoading] = useState(true);
 
-    // Función helper para fetch con auth
-    const authFetch = (url, options = {}) => {
-        return fetch(url, {
+    // Helper interno para el modal
+    const authFetch = async (endpoint, options = {}) => {
+        const res = await fetch(`${API_URL}${endpoint}`, {
             ...options,
             headers: {
                 ...options.headers,
                 'Content-Type': 'application/json',
-                'x-admin-secret': ADMIN_SECRET
+                'Authorization': `Bearer ${token}`
             }
         });
+        if (res.status === 401 || res.status === 403) {
+            onLogout();
+            onClose(); // Cerramos modal también
+            return null;
+        }
+        return res;
     };
 
     // Cargar detalles al abrir
     useEffect(() => {
         setLoading(true);
-        authFetch(`${API_URL}/agency/location-details/${location.location_id}`)
-            .then(r => r.json())
+        authFetch(`/agency/location-details/${location.location_id}`)
+            .then(r => r && r.json())
             .then(data => {
-                setDetails(data);
-                setLoading(false);
+                if (data) {
+                    setDetails(data);
+                    setLoading(false);
+                }
             })
             .catch(console.error);
     }, [location]);
@@ -142,7 +168,7 @@ function LocationDetailsModal({ location, onClose }) {
         const newSettings = { ...details.settings, [key]: !details.settings[key] };
         setDetails(prev => ({ ...prev, settings: newSettings }));
 
-        await authFetch(`${API_URL}/agency/settings/${location.location_id}`, {
+        await authFetch(`/agency/settings/${location.location_id}`, {
             method: 'PUT',
             body: JSON.stringify({ settings: newSettings })
         });
@@ -157,18 +183,20 @@ function LocationDetailsModal({ location, onClose }) {
 
         if (!keyword || !tag) return;
 
-        const res = await authFetch(`${API_URL}/agency/keywords`, {
+        const res = await authFetch(`/agency/keywords`, {
             method: 'POST',
             body: JSON.stringify({ locationId: location.location_id, keyword, tag })
         });
-        const newRule = await res.json();
-        setDetails(prev => ({ ...prev, keywords: [newRule, ...prev.keywords] }));
-        e.target.reset();
+        if (res) {
+            const newRule = await res.json();
+            setDetails(prev => ({ ...prev, keywords: [newRule, ...prev.keywords] }));
+            e.target.reset();
+        }
     };
 
     // Borrar Keyword
     const deleteKeyword = async (id) => {
-        await authFetch(`${API_URL}/agency/keywords/${id}`, { method: 'DELETE' });
+        await authFetch(`/agency/keywords/${id}`, { method: 'DELETE' });
         setDetails(prev => ({ ...prev, keywords: prev.keywords.filter(k => k.id !== id) }));
     };
 
