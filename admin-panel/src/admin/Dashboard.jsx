@@ -12,7 +12,7 @@ const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").re
 export default function AdminDashboard({ token, onLogout }) {
     const [view, setView] = useState('agencies'); // 'agencies' | 'subaccounts'
     const [selectedAgency, setSelectedAgency] = useState(null);
-    const [selectedLocation, setSelectedLocation] = useState(null); // Para el Modal Detalle
+    const [selectedLocation, setSelectedLocation] = useState(null); // Para el Modal Detalle prueba
 
     // Datos
     const [agencies, setAgencies] = useState([]);
