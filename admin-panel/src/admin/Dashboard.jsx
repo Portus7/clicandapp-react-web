@@ -91,9 +91,12 @@ export default function AdminDashboard({ token, onLogout }) {
         a.agency_id && a.agency_id.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const filteredSubaccounts = subaccounts.filter(s =>
-        s.location_id && s.location_id.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredSubaccounts = subaccounts.filter(s => {
+        const term = searchTerm.toLowerCase();
+        const nameMatch = s.name && s.name.toLowerCase().includes(term);
+        const idMatch = s.location_id && s.location_id.toLowerCase().includes(term);
+        return nameMatch || idMatch;
+    });
 
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
@@ -227,6 +230,8 @@ export default function AdminDashboard({ token, onLogout }) {
                                 <table className="w-full text-left border-collapse">
                                     <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
                                         <tr>
+                                            {/* 👇 Nueva columna primero */}
+                                            <th className="px-6 py-4">Nombre</th>
                                             <th className="px-6 py-4">Location ID</th>
                                             <th className="px-6 py-4">Estado</th>
                                             <th className="px-6 py-4">Plan</th>
@@ -237,14 +242,26 @@ export default function AdminDashboard({ token, onLogout }) {
                                     <tbody className="divide-y divide-gray-100">
                                         {filteredSubaccounts.map(sub => (
                                             <tr key={sub.location_id} className="hover:bg-indigo-50/30 transition duration-150">
+
+                                                {/* 👇 COLUMNA 1: NOMBRE (Nuevo) */}
                                                 <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="bg-gray-100 p-2 rounded-lg text-gray-500">
-                                                            <Smartphone size={18} />
-                                                        </div>
-                                                        <div className="font-medium text-gray-900">{sub.location_id}</div>
+                                                    <div className="font-bold text-gray-900 text-base">
+                                                        {sub.name || "Sin Nombre"}
                                                     </div>
                                                 </td>
+
+                                                {/* 👇 COLUMNA 2: ID (Modificado para verse más técnico) */}
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="bg-gray-100 p-1.5 rounded text-gray-500">
+                                                            <Smartphone size={16} />
+                                                        </div>
+                                                        <div className="font-mono text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                                                            {sub.location_id}
+                                                        </div>
+                                                    </div>
+                                                </td>
+
                                                 <td className="px-6 py-4">
                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${sub.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                                         sub.status === 'trial' ? 'bg-blue-50 text-blue-700 border-blue-200' :
