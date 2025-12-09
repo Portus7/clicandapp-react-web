@@ -297,6 +297,7 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
     const [activeTab, setActiveTab] = useState('slots');
     const [details, setDetails] = useState({ slots: [], keywords: [], settings: {} });
     const [loading, setLoading] = useState(true);
+    const [deletingSlotId, setDeletingSlotId] = useState(null);
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -389,17 +390,28 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
     };
 
     const handleDeleteSlot = async (slotId) => {
-        if (!confirm("¿Seguro que deseas eliminar este dispositivo? Se cerrará la sesión.")) return;
+        if (!confirm("¿Seguro que deseas eliminar este dispositivo? Se cerrará la sesión de WhatsApp.")) return;
+
+        setDeletingSlotId(slotId); // Activar carga para este slot específico
+
         try {
-            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}`, { method: "DELETE" });
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}`, {
+                method: "DELETE"
+            });
+
             if (res && res.ok) {
                 setDetails(prev => ({
                     ...prev,
                     slots: prev.slots.filter(s => s.slot_id !== slotId)
                 }));
+            } else {
+                alert("No se pudo desvincular correctamente.");
             }
         } catch (error) {
             console.error(error);
+            alert("Error de conexión al eliminar.");
+        } finally {
+            setDeletingSlotId(null); // Desactivar carga
         }
     };
 
@@ -463,8 +475,17 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
                                                 const isConnected = !!slot.phone_number;
                                                 return (
                                                     <div key={slot.slot_id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm relative group hover:border-indigo-300 transition-all hover:shadow-md">
-                                                        <button onClick={() => handleDeleteSlot(slot.slot_id)} className="absolute top-2 right-2 p-1.5 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-md opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={14} /></button>
-                                                        <div className={`absolute top-0 left-0 w-1.5 h-full rounded-l-xl ${isConnected ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
+                                                        <button
+                                                            onClick={() => handleDeleteSlot(slot.slot_id)}
+                                                            disabled={deletingSlotId === slot.slot_id}
+                                                            className="absolute top-2 right-2 p-1.5 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-md opacity-0 group-hover:opacity-100 transition-all"
+                                                        >
+                                                            {deletingSlotId === slot.slot_id ? (
+                                                                <Loader2 size={14} className="animate-spin text-red-500" />
+                                                            ) : (
+                                                                <Trash2 size={14} />
+                                                            )}
+                                                        </button>                                                        <div className={`absolute top-0 left-0 w-1.5 h-full rounded-l-xl ${isConnected ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
                                                         <div className="pl-3">
                                                             <div className="flex items-center gap-2 mb-2">
                                                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Slot {slot.slot_id}</span>
