@@ -1,26 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import {
     Building2, Smartphone, Settings, Tag, Plus, Trash2,
-    X, RefreshCw, Edit2, ExternalLink
+    X, RefreshCw, Edit2, ExternalLink, Link2, Loader2
 } from 'lucide-react';
 
 // URL del Backend
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 
 // URL de Instalación de tu App en GHL Marketplace
-const INSTALL_APP_URL = "https://gestion.clicandapp.com/integration/691623d58a49cdcb2c56ce9c";
+const INSTALL_APP_URL = import.meta.env.INSTALL_APP_URL || "https://gestion.clicandapp.com/integration/691623d58a49cdcb2c56ce9c";
 
 export default function AgencyDashboard({ token, onLogout }) {
-    // LÓGICA DE JERARQUÍA:
-    // 1. Prioridad al ID guardado en el login (Agencia real)
-    // 2. Fallback a URL (Solo útil para admins debuggeando)
-    const storedAgencyId = localStorage.getItem("agencyId");
+    // Estado para el ID de agencia (puede cambiar si se vincula una nueva cuenta)
+    const [storedAgencyId, setStoredAgencyId] = useState(localStorage.getItem("agencyId"));
     const queryParams = new URLSearchParams(window.location.search);
+
+    // Prioridad: Estado local > URL (para admins)
     const AGENCY_ID = storedAgencyId || queryParams.get("agencyId");
 
     const [locations, setLocations] = useState([]);
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    // Estado para la pantalla de carga de vinculación
+    const [isAutoSyncing, setIsAutoSyncing] = useState(false);
 
     // --- Helper para peticiones autenticadas ---
     const authFetch = async (endpoint, options = {}) => {
@@ -41,7 +44,50 @@ export default function AgencyDashboard({ token, onLogout }) {
         return res;
     };
 
-    // --- Función para cargar Locations ---
+    // --- 1. LÓGICA DE AUTO-VINCULACIÓN (Post-Instalación) ---
+    useEffect(() => {
+        const newInstallId = queryParams.get("new_install");
+
+        if (newInstallId && !isAutoSyncing) {
+            autoSyncAgency(newInstallId);
+        }
+    }, []);
+
+    const autoSyncAgency = async (locationId) => {
+        setIsAutoSyncing(true);
+        try {
+            // Esperamos 2s para dar tiempo al webhook del backend a procesar la DB
+            await new Promise(r => setTimeout(r, 2000));
+
+            const res = await authFetch(`/agency/sync-ghl`, {
+                method: "POST",
+                body: JSON.stringify({ locationIdToVerify: locationId })
+            });
+            const data = await res.json();
+
+            if (data.success && data.newAgencyId) {
+                // Guardamos el nuevo ID real de la agencia
+                localStorage.setItem("agencyId", data.newAgencyId);
+                setStoredAgencyId(data.newAgencyId);
+
+                // Limpiamos la URL para quitar el parámetro ?new_install=...
+                window.history.replaceState({}, document.title, window.location.pathname);
+                alert("¡Vinculación exitosa! Tu agencia ha sido verificada.");
+            } else {
+                console.error("Error vinculando:", data.error);
+                alert("Hubo un problema verificando la instalación. Por favor intenta recargar.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error de conexión al vincular.");
+        } finally {
+            setIsAutoSyncing(false);
+            // Forzamos la recarga de datos con el nuevo ID
+            if (AGENCY_ID) fetchLocations();
+        }
+    };
+
+    // --- 2. Cargar Locations ---
     const fetchLocations = () => {
         if (!AGENCY_ID) {
             setLoading(false);
@@ -62,27 +108,61 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     useEffect(() => {
         fetchLocations();
-    }, [AGENCY_ID, token]);
+    }, [AGENCY_ID]);
 
     // --- Acción de Instalar App ---
     const handleInstallApp = () => {
-        // Abre la URL de instalación en nueva pestaña
-        window.open(INSTALL_APP_URL, '_blank');
+        // Redirigimos en la misma ventana para mantener el flujo OAuth limpio
+        window.location.href = INSTALL_APP_URL;
     };
 
-    // Validación de seguridad inicial
-    if (!AGENCY_ID) {
+    // --- RENDERIZADO: Pantalla de Carga Vinculación ---
+    if (isAutoSyncing) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="text-center">
-                    <h2 className="text-xl font-bold text-gray-700">Error de Identificación</h2>
-                    <p className="text-gray-500 mb-4">No se encontró un ID de agencia asociado a tu cuenta.</p>
-                    <button onClick={onLogout} className="text-indigo-600 hover:underline">Volver al inicio</button>
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 animate-in fade-in">
+                <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md w-full border border-gray-100">
+                    <div className="mb-6 flex justify-center">
+                        <div className="relative">
+                            <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+                            <div className="absolute inset-0 flex items-center justify-center text-indigo-600">
+                                <Link2 size={24} />
+                            </div>
+                        </div>
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Finalizando Instalación</h2>
+                    <p className="text-gray-500">Estamos vinculando tu cuenta de GoHighLevel con el panel...</p>
                 </div>
             </div>
         );
     }
 
+    // --- RENDERIZADO: Usuario Nuevo (Sin Agencia Vinculada) ---
+    if (!AGENCY_ID) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                <div className="bg-white p-8 rounded-2xl shadow-lg text-center max-w-lg border border-gray-100">
+                    <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <Building2 className="text-indigo-600" size={32} />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-3">Conecta tu Agencia</h2>
+                    <p className="text-gray-500 mb-8 leading-relaxed">
+                        Para comenzar, necesitamos verificar tu cuenta. Haz clic abajo para instalar la app en cualquiera de tus subcuentas de GoHighLevel.
+                    </p>
+                    <button
+                        onClick={handleInstallApp}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-xl font-bold transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 hover:-translate-y-1"
+                    >
+                        Comenzar Instalación <ExternalLink size={20} />
+                    </button>
+                    <button onClick={onLogout} className="mt-6 text-sm text-gray-400 hover:text-gray-600 font-medium">
+                        Cerrar Sesión
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // --- RENDERIZADO: Dashboard Principal ---
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900 font-sans p-6">
             <div className="max-w-7xl mx-auto">
@@ -96,14 +176,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <h1 className="text-2xl font-bold tracking-tight text-gray-800">Panel de Agencia</h1>
                             <div className="flex items-center gap-2 text-gray-500 text-sm">
                                 <span className="font-mono bg-gray-100 px-2 py-0.5 rounded border border-gray-200 text-xs">
-                                    ID: {AGENCY_ID}
+                                    ID: {AGENCY_ID.startsWith('AG-') ? 'Pendiente Sync' : AGENCY_ID}
                                 </span>
                             </div>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {/* Botón Refrescar */}
                         <button
                             onClick={fetchLocations}
                             className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition"
@@ -112,7 +191,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
                         </button>
 
-                        {/* Botón Nueva Subcuenta (Instalar App) */}
                         <button
                             onClick={handleInstallApp}
                             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-sm shadow-indigo-200"
@@ -132,21 +210,20 @@ export default function AgencyDashboard({ token, onLogout }) {
                     </div>
                 </div>
 
-                {/* Contenido Principal */}
+                {/* Grid de Locations */}
                 {loading ? (
                     <div className="text-center py-20">
                         <RefreshCw className="animate-spin mx-auto text-indigo-500 mb-3" size={32} />
                         <p className="text-gray-400">Cargando tus subcuentas...</p>
                     </div>
                 ) : locations.length === 0 ? (
-                    /* ESTADO VACÍO */
                     <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-gray-200 border-dashed animate-in fade-in zoom-in-95 duration-500">
                         <div className="bg-indigo-50 p-4 rounded-full mb-4">
                             <Smartphone className="text-indigo-400" size={48} />
                         </div>
                         <h3 className="text-xl font-bold text-gray-900">No tienes subcuentas vinculadas</h3>
                         <p className="text-gray-500 max-w-md mx-auto mt-2 text-center mb-8">
-                            Para comenzar, instala nuestra aplicación en tu cuenta de GoHighLevel.
+                            Para verlas aquí, instala la aplicación en tus subcuentas de GoHighLevel.
                         </p>
 
                         <button
@@ -159,7 +236,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </button>
                     </div>
                 ) : (
-                    /* GRID DE SUBCUENTAS */
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {locations.map(loc => (
                             <div
@@ -252,7 +328,6 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
             .catch(console.error);
     }, [location]);
 
-    // --- ACCIONES ---
     const toggleSetting = async (key) => {
         const newSettings = { ...details.settings, [key]: !details.settings[key] };
         setDetails(prev => ({ ...prev, settings: newSettings }));
@@ -347,8 +422,6 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-200 transform transition-all scale-100">
-
-                {/* Header Modal */}
                 <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
                     <div>
                         <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -360,20 +433,17 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition-colors"><X size={24} /></button>
                 </div>
 
-                {/* Tabs */}
                 <div className="flex border-b border-gray-100 px-6 bg-gray-50/50">
                     <TabButton active={activeTab === 'slots'} onClick={() => setActiveTab('slots')} icon={<Smartphone size={16} />} label="Dispositivos" />
                     <TabButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<Settings size={16} />} label="Configuración" />
                     <TabButton active={activeTab === 'keywords'} onClick={() => setActiveTab('keywords')} icon={<Tag size={16} />} label="Palabras Clave" />
                 </div>
 
-                {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 bg-gray-50/30">
                     {loading ? (
                         <div className="flex justify-center items-center h-40 text-indigo-600"><RefreshCw className="animate-spin" /></div>
                     ) : (
                         <>
-                            {/* TAB: DISPOSITIVOS */}
                             {activeTab === 'slots' && (
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-center mb-4 px-1">
@@ -394,10 +464,7 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
                                                 return (
                                                     <div key={slot.slot_id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm relative group hover:border-indigo-300 transition-all hover:shadow-md">
                                                         <button onClick={() => handleDeleteSlot(slot.slot_id)} className="absolute top-2 right-2 p-1.5 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-md opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={14} /></button>
-
-                                                        {/* Status Bar */}
                                                         <div className={`absolute top-0 left-0 w-1.5 h-full rounded-l-xl ${isConnected ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
-
                                                         <div className="pl-3">
                                                             <div className="flex items-center gap-2 mb-2">
                                                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Slot {slot.slot_id}</span>
@@ -421,7 +488,6 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
                                 </div>
                             )}
 
-                            {/* TAB: CONFIGURACIÓN */}
                             {activeTab === 'settings' && (
                                 <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
                                     <SettingRow label="Firma de Origen" desc='Añade "Source: [Nombre]" al final de los mensajes.' checked={details.settings?.show_source_label ?? true} onChange={() => toggleSetting('show_source_label')} />
@@ -432,7 +498,6 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
                                 </div>
                             )}
 
-                            {/* TAB: KEYWORDS */}
                             {activeTab === 'keywords' && (
                                 <div className="space-y-6">
                                     <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
