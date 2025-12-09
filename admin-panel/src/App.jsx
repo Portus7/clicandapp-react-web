@@ -1,31 +1,46 @@
+// admin-panel/src/App.jsx
 import React, { useState, useEffect } from 'react';
 import AdminDashboard from './admin/Dashboard';
 import AgencyDashboard from './admin/AgencyDashboard';
-import Login from './admin/Login';
+import WelcomeAuth from './admin/WelcomeAuth'; // El nuevo componente del punto 3
 import './index.css';
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem("authToken"));
+    const [token, setToken] = useState(localStorage.getItem("authToken"));
+    const [role, setRole] = useState(localStorage.getItem("userRole")); // 'admin' | 'agency'
 
-  // Detectar modo (admin o agencia)
-  const params = new URLSearchParams(window.location.search);
-  const isAgencyMode = params.get("mode") === "agency" || window.location.pathname.includes("/agency");
+    // Función Login exitoso
+    const handleLoginSuccess = (data) => {
+        localStorage.setItem("authToken", data.token);
+        localStorage.setItem("userRole", data.role);
+        // Si es agencia, guardamos su ID para que el dashboard sepa qué cargar
+        if (data.agencyId) localStorage.setItem("agencyId", data.agencyId);
 
-  // Si no hay token, mostramos Login
-  if (!token) {
-    return <Login onLoginSuccess={(newToken) => setToken(newToken)} />;
-  }
+        setToken(data.token);
+        setRole(data.role);
+    };
 
-  // Opción para cerrar sesión (puedes pasarla como prop a los dashboards)
-  const logout = () => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userRole");
-    setToken(null);
-  };
+    const logout = () => {
+        localStorage.clear();
+        setToken(null);
+        setRole(null);
+    };
 
-  return isAgencyMode
-    ? <AgencyDashboard token={token} onLogout={logout} />
-    : <AdminDashboard token={token} onLogout={logout} />;
+    if (!token) {
+        // Usamos el nuevo componente de bienvenida
+        return <WelcomeAuth onLoginSuccess={handleLoginSuccess} />;
+    }
+
+    // RENDERIZADO CONDICIONAL POR ROL
+    if (role === 'admin') {
+        return <AdminDashboard token={token} onLogout={logout} />;
+    }
+
+    if (role === 'agency') {
+        return <AgencyDashboard token={token} onLogout={logout} />;
+    }
+
+    return <div className="p-10 text-center">Rol desconocido. Contacte soporte. <button onClick={logout}>Salir</button></div>;
 }
 
 export default App;
