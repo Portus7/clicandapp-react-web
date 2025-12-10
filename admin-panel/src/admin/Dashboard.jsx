@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import SupportManager from './SupportManager';
 import {
     Users, Settings, Plus, Search, CheckCircle,
     AlertCircle, X, RefreshCw, Building2, Smartphone,
@@ -144,6 +145,9 @@ export default function AdminDashboard({ token, onLogout }) {
                 {/* BARRA DE BÚSQUEDA GLOBAL */}
                 <div className="mb-8">
                     <div className="relative w-full max-w-md mx-auto sm:mx-0">
+                        {view === 'agencies' && (
+                            <SupportManager token={token} />
+                        )}
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                         <input
                             type="text"
