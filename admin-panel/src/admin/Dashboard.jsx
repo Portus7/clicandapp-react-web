@@ -88,9 +88,13 @@ export default function AdminDashboard({ token, onLogout }) {
     };
 
     // --- FILTRADO ---
-    const filteredAgencies = agencies.filter(a =>
-        a.agency_id && a.agency_id.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredAgencies = agencies.filter(a => {
+        const term = searchTerm.toLowerCase();
+        // 🔥 FIX: Ahora buscamos por ID O por Nombre
+        const idMatch = a.agency_id && a.agency_id.toLowerCase().includes(term);
+        const nameMatch = a.agency_name && a.agency_name.toLowerCase().includes(term);
+        return idMatch || nameMatch;
+    });
 
     const filteredSubaccounts = subaccounts.filter(s => {
         const term = searchTerm.toLowerCase();
