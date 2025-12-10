@@ -516,6 +516,13 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
                                     <SettingRow label="Transcripción IA" desc='Convierte notas de voz a texto automáticamente.' checked={details.settings?.transcribe_audio ?? true} onChange={() => toggleSetting('transcribe_audio')} />
                                     <div className="h-px bg-gray-100"></div>
                                     <SettingRow label="Auto-Contactos" desc='Crea contactos desconocidos en el CRM.' checked={details.settings?.create_unknown_contacts ?? true} onChange={() => toggleSetting('create_unknown_contacts')} />
+                                    <div className="h-px bg-gray-100"></div>
+                                    <SettingRow
+                                        label="Alertas de Desconexión"
+                                        desc="Enviar mensaje de WhatsApp al usuario si se cierra la sesión."
+                                        checked={details.settings?.send_disconnect_message ?? true}
+                                        onChange={() => toggleSetting('send_disconnect_message')}
+                                    />
                                 </div>
                             )}
 
