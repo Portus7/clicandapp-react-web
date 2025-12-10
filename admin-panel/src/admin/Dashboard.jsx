@@ -513,6 +513,13 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
                                     <SettingRow label="IA Transcripción" desc="Audio a texto" checked={details.settings?.transcribe_audio ?? true} onChange={() => toggleSetting('transcribe_audio')} />
                                     <div className="h-px bg-gray-100"></div>
                                     <SettingRow label="Crear Contactos" desc="Nuevos leads" checked={details.settings?.create_unknown_contacts ?? true} onChange={() => toggleSetting('create_unknown_contacts')} />
+                                    <div className="h-px bg-gray-100"></div>
+                                    <SettingRow
+                                        label="Alertas de Desconexión"
+                                        desc="Notificar al usuario al desconectar"
+                                        checked={details.settings?.send_disconnect_message ?? true}
+                                        onChange={() => toggleSetting('send_disconnect_message')}
+                                    />
                                 </div>
                             )}
 
