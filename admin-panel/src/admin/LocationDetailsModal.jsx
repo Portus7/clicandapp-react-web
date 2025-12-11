@@ -1,8 +1,7 @@
-// src/admin/LocationDetailsModal.jsx
 import React, { useState, useEffect } from 'react';
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2
+    RefreshCw, Edit2, Loader2, User, Hash
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
@@ -10,6 +9,7 @@ const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").re
 export default function LocationDetailsModal({ location, onClose, token, onLogout }) {
     const [slots, setSlots] = useState([]);
     const [keywords, setKeywords] = useState([]);
+    const [ghlUsers, setGhlUsers] = useState([]); // 👈 NUEVO: Lista de usuarios GHL
     const [loading, setLoading] = useState(true);
     const [expandedSlotId, setExpandedSlotId] = useState(null);
     const [deletingSlotId, setDeletingSlotId] = useState(null);
@@ -29,52 +29,115 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         return res;
     };
 
-    useEffect(() => { loadData(); }, [location]);
+    useEffect(() => {
+        loadData();
+    }, [location]);
 
-    const loadData = () => {
+    const loadData = async () => {
         setLoading(true);
-        authFetch(`/agency/location-details/${location.location_id}`)
-            .then(r => r && r.json())
-            .then(data => {
-                if (data) {
-                    setSlots(data.slots || []);
-                    setKeywords(data.keywords || []);
-                    setLoading(false);
-                }
-            })
-            .catch(console.error);
+        try {
+            // Cargar slots, keywords y nombre
+            const detailsRes = await authFetch(`/agency/location-details/${location.location_id}`);
+            const detailsData = await detailsRes.json();
+
+            if (detailsData) {
+                setSlots(detailsData.slots || []);
+                setKeywords(detailsData.keywords || []);
+            }
+
+            // 🆕 Cargar usuarios de GHL para el dropdown
+            const usersRes = await authFetch(`/agency/ghl-users/${location.location_id}`);
+            if (usersRes.ok) {
+                const usersData = await usersRes.json();
+                setGhlUsers(usersData || []);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
     };
 
+    // --- SLOTS ---
     const handleAddSlot = async () => {
-        const res = await authFetch(`/agency/add-slot`, { method: "POST", body: JSON.stringify({ locationId: location.location_id }) });
+        const res = await authFetch(`/agency/add-slot`, {
+            method: "POST",
+            body: JSON.stringify({ locationId: location.location_id })
+        });
         if (res && res.ok) loadData();
     };
+
     const handleDeleteSlot = async (slotId) => {
-        if (!confirm("¿Eliminar?")) return;
+        if (!confirm("¿Eliminar dispositivo? Se cerrará la sesión de WhatsApp.")) return;
         setDeletingSlotId(slotId);
         await authFetch(`/agency/slots/${location.location_id}/${slotId}`, { method: "DELETE" });
         setDeletingSlotId(null);
         loadData();
     };
+
     const editSlotName = async (slotId, currentName) => {
         const newName = prompt("Nuevo nombre:", currentName || "");
         if (newName && newName !== currentName) {
-            const res = await authFetch(`/config-slot`, { method: "POST", body: JSON.stringify({ locationId: location.location_id, slot: slotId, slotName: newName }) });
-            if (res && res.ok) setSlots(prev => prev.map(s => s.slot_id === slotId ? { ...s, slot_name: newName } : s));
+            const res = await authFetch(`/config-slot`, {
+                method: "POST",
+                body: JSON.stringify({ locationId: location.location_id, slot: slotId, slotName: newName })
+            });
+            if (res && res.ok) {
+                setSlots(prev => prev.map(s => s.slot_id === slotId ? { ...s, slot_name: newName } : s));
+            }
         }
     };
+
+    // --- CONFIGURACIÓN POR SLOT ---
+
+    // Función auxiliar para obtener defaults
+    const getSafeSettings = (currentSettings) => ({
+        show_source_label: true,
+        transcribe_audio: true,
+        create_unknown_contacts: true,
+        send_disconnect_message: true,
+        ghl_contact_tag: "",       // 👈 Default vacío
+        ghl_assigned_user: ""      // 👈 Default vacío
+    });
+
+    // Toggle para Booleanos
     const toggleSlotSetting = async (slotId, key, currentSettings) => {
-        const safeSettings = currentSettings || {};
+        const safeSettings = { ...getSafeSettings(currentSettings), ...currentSettings };
         const newSettings = { ...safeSettings, [key]: !safeSettings[key] };
-        setSlots(prev => prev.map(s => s.slot_id === slotId ? { ...s, settings: newSettings } : s));
-        await authFetch(`/agency/slots/${location.location_id}/${slotId}/settings`, { method: 'PUT', body: JSON.stringify({ settings: newSettings }) });
+        updateSettingsBackend(slotId, newSettings);
     };
+
+    // 🆕 Cambio para Textos/Selects
+    const changeSlotSetting = async (slotId, key, value, currentSettings) => {
+        const safeSettings = { ...getSafeSettings(currentSettings), ...currentSettings };
+        const newSettings = { ...safeSettings, [key]: value };
+        updateSettingsBackend(slotId, newSettings);
+    };
+
+    const updateSettingsBackend = async (slotId, newSettings) => {
+        // Optimista UI Update
+        setSlots(prev => prev.map(s => s.slot_id === slotId ? { ...s, settings: newSettings } : s));
+
+        await authFetch(`/agency/slots/${location.location_id}/${slotId}/settings`, {
+            method: 'PUT',
+            body: JSON.stringify({ settings: newSettings })
+        });
+    };
+
+    // --- KEYWORDS POR SLOT ---
     const handleAddKeyword = async (e, slotId) => {
         e.preventDefault();
         const formData = new FormData(e.target);
-        await authFetch(`/agency/keywords`, { method: 'POST', body: JSON.stringify({ locationId: location.location_id, slotId, keyword: formData.get('keyword'), tag: formData.get('tag') }) });
-        loadData(); e.target.reset();
+        const keyword = formData.get('keyword');
+        const tag = formData.get('tag');
+
+        const res = await authFetch(`/agency/keywords`, {
+            method: 'POST',
+            body: JSON.stringify({ locationId: location.location_id, slotId, keyword, tag })
+        });
+        if (res && res.ok) loadData();
     };
+
     const deleteKeyword = async (id) => {
         await authFetch(`/agency/keywords/${id}`, { method: 'DELETE' });
         loadData();
@@ -82,7 +145,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
-            {/* CONTENEDOR MODAL: Fondo oscuro en dark mode, borde más visible */}
             <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-300 dark:border-gray-700">
 
                 {/* HEADER */}
@@ -119,9 +181,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const isExpanded = expandedSlotId === slot.slot_id;
                                 const isConnected = !!slot.phone_number;
                                 const slotKeywords = keywords.filter(k => k.slot_id === slot.slot_id);
+                                const currentSettings = slot.settings || {};
 
                                 return (
-                                    // TARJETA DE SLOT: Bordes más fuertes
                                     <div key={slot.slot_id} className={`bg-white dark:bg-gray-900 border rounded-xl transition-all duration-300 ${isExpanded
                                             ? 'border-indigo-500 ring-1 ring-indigo-500 shadow-lg'
                                             : 'border-gray-300 dark:border-gray-700 shadow-sm hover:border-indigo-300'
@@ -169,28 +231,76 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                             <div className="border-t border-gray-200 dark:border-gray-800 p-6 bg-gray-50 dark:bg-gray-950/50 rounded-b-xl">
                                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-                                                    {/* Configuración */}
-                                                    <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                                        <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                                            <Settings size={14} /> Configuración
+                                                    {/* COLUMNA 1: CONFIGURACIÓN GENERAL */}
+                                                    <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
+                                                        <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                                            <Settings size={14} /> Preferencias del Dispositivo
                                                         </h4>
+
+                                                        {/* Toggles Existentes */}
                                                         <div className="space-y-4">
                                                             <SettingRow
                                                                 label="Firma de Origen"
                                                                 desc="Añadir 'Source: [Nombre]'."
-                                                                checked={slot.settings?.show_source_label ?? true}
+                                                                checked={currentSettings.show_source_label ?? true}
                                                                 onChange={() => toggleSlotSetting(slot.slot_id, 'show_source_label', slot.settings)}
                                                             />
-                                                            <SettingRow label="Transcripción IA" desc="Audio a texto." checked={slot.settings?.transcribe_audio ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'transcribe_audio', slot.settings)} />
-                                                            <SettingRow label="Crear Contactos" desc="Registrar leads." checked={slot.settings?.create_unknown_contacts ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'create_unknown_contacts', slot.settings)} />
-                                                            <SettingRow label="Alerta Desconexión" desc="Avisar cierre sesión." checked={slot.settings?.send_disconnect_message ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'send_disconnect_message', slot.settings)} />
+                                                            <SettingRow label="Transcripción IA" desc="Audio a texto." checked={currentSettings.transcribe_audio ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'transcribe_audio', slot.settings)} />
+                                                            <SettingRow label="Crear Contactos" desc="Registrar leads." checked={currentSettings.create_unknown_contacts ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'create_unknown_contacts', slot.settings)} />
+                                                            <SettingRow label="Alerta Desconexión" desc="Avisar cierre sesión." checked={currentSettings.send_disconnect_message ?? true} onChange={() => toggleSlotSetting(slot.slot_id, 'send_disconnect_message', slot.settings)} />
+                                                        </div>
+
+                                                        {/* 👇 NUEVOS CAMPOS: TAG Y RESPONSABLE */}
+                                                        <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-800 space-y-4">
+
+                                                            {/* Input Tag */}
+                                                            <div>
+                                                                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1.5">
+                                                                    <Hash size={12} /> Tag Automático (Entrante)
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Ej: whatsapp-ventas"
+                                                                    className="w-full text-sm p-2 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                                    value={currentSettings.ghl_contact_tag || ""}
+                                                                    onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_contact_tag', e.target.value, slot.settings)}
+                                                                />
+                                                                <p className="text-[10px] text-gray-400 mt-1">Se aplicará a contactos que escriban a este número.</p>
+                                                            </div>
+
+                                                            {/* Dropdown Responsable */}
+                                                            <div>
+                                                                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1.5">
+                                                                    <User size={12} /> Usuario Responsable (GHL)
+                                                                </label>
+                                                                <div className="relative">
+                                                                    <select
+                                                                        className="w-full text-sm p-2 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
+                                                                        value={currentSettings.ghl_assigned_user || ""}
+                                                                        onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_assigned_user', e.target.value, slot.settings)}
+                                                                    >
+                                                                        <option value="">-- Sin asignar --</option>
+                                                                        {ghlUsers.map(u => (
+                                                                            <option key={u.id} value={u.id}>
+                                                                                {u.name} ({u.role || 'User'})
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                    {/* Flechita custom para el select */}
+                                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                                                                        <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
+                                                                    </div>
+                                                                </div>
+                                                                <p className="text-[10px] text-gray-400 mt-1">Las conversaciones se asignarán a este usuario.</p>
+                                                            </div>
+
                                                         </div>
                                                     </div>
 
-                                                    {/* Keywords */}
+                                                    {/* COLUMNA 2: KEYWORDS (IGUAL QUE ANTES) */}
                                                     <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                         <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                                            <Tag size={14} /> Etiquetas Automáticas
+                                                            <Tag size={14} /> Etiquetas por Palabra Clave
                                                         </h4>
 
                                                         <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-2 mb-4">
@@ -231,7 +341,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     );
 }
 
-// Componente de fila de configuración (Toggle)
+// Componente SettingRow
 const SettingRow = ({ label, desc, checked, onChange }) => (
     <div className="flex items-center justify-between group">
         <div>
