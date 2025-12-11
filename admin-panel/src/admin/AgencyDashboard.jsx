@@ -293,11 +293,15 @@ export default function AgencyDashboard({ token, onLogout }) {
 // ---------------------------------------------------------------------
 // SUB-COMPONENTE: MODAL DE DETALLES
 // ---------------------------------------------------------------------
+// src/admin/AgencyDashboard.jsx (Solo el componente LocationDetailsModal)
+
 function LocationDetailsModal({ location, onClose, token, onLogout }) {
-    const [activeTab, setActiveTab] = useState('slots');
-    const [details, setDetails] = useState({ slots: [], keywords: [], settings: {} });
+    const [slots, setSlots] = useState([]);
+    const [keywords, setKeywords] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [deletingSlotId, setDeletingSlotId] = useState(null);
+
+    // Estado para saber qué slot se está editando (expandido)
+    const [expandedSlotId, setExpandedSlotId] = useState(null);
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -309,261 +313,226 @@ function LocationDetailsModal({ location, onClose, token, onLogout }) {
             }
         });
         if (res.status === 401 || res.status === 403) {
-            onLogout();
-            onClose();
-            return null;
+            onLogout(); onClose(); return null;
         }
         return res;
     };
 
     useEffect(() => {
+        loadData();
+    }, [location]);
+
+    const loadData = () => {
         setLoading(true);
         authFetch(`/agency/location-details/${location.location_id}`)
             .then(r => r && r.json())
             .then(data => {
                 if (data) {
-                    setDetails(data);
+                    setSlots(data.slots || []);
+                    setKeywords(data.keywords || []);
                     setLoading(false);
                 }
             })
             .catch(console.error);
-    }, [location]);
+    }
 
-    const toggleSetting = async (key) => {
-        const newSettings = { ...details.settings, [key]: !details.settings[key] };
-        setDetails(prev => ({ ...prev, settings: newSettings }));
-        await authFetch(`/agency/settings/${location.location_id}`, {
+    // --- ACCIONES DE SLOT ---
+
+    const handleAddSlot = async () => {
+        const res = await authFetch(`/agency/add-slot`, {
+            method: "POST",
+            body: JSON.stringify({ locationId: location.location_id })
+        });
+        if (res && res.ok) loadData();
+    };
+
+    const handleDeleteSlot = async (slotId) => {
+        if (!confirm("¿Eliminar dispositivo? Se perderá la configuración.")) return;
+        await authFetch(`/agency/slots/${location.location_id}/${slotId}`, { method: "DELETE" });
+        loadData();
+    };
+
+    // --- ACCIONES DE CONFIGURACIÓN (POR SLOT) ---
+
+    const toggleSlotSetting = async (slotId, key, currentSettings) => {
+        // Aseguramos defaults si es null
+        const safeSettings = currentSettings || { show_source_label: true, transcribe_audio: true, create_unknown_contacts: true, send_disconnect_message: true };
+        const newSettings = { ...safeSettings, [key]: !safeSettings[key] };
+
+        // Actualización optimista en UI
+        setSlots(prev => prev.map(s => s.slot_id === slotId ? { ...s, settings: newSettings } : s));
+
+        await authFetch(`/agency/slots/${location.location_id}/${slotId}/settings`, {
             method: 'PUT',
             body: JSON.stringify({ settings: newSettings })
         });
     };
 
-    const handleAddKeyword = async (e) => {
+    // --- ACCIONES DE KEYWORDS (POR SLOT) ---
+
+    const handleAddKeyword = async (e, slotId) => {
         e.preventDefault();
         const formData = new FormData(e.target);
         const keyword = formData.get('keyword');
         const tag = formData.get('tag');
-        if (!keyword || !tag) return;
+
         const res = await authFetch(`/agency/keywords`, {
             method: 'POST',
-            body: JSON.stringify({ locationId: location.location_id, keyword, tag })
+            body: JSON.stringify({ locationId: location.location_id, slotId, keyword, tag })
         });
-        if (res && res.ok) {
-            const newRule = await res.json();
-            setDetails(prev => ({ ...prev, keywords: [newRule, ...prev.keywords] }));
-            e.target.reset();
-        }
+        if (res && res.ok) loadData();
     };
 
     const deleteKeyword = async (id) => {
-        const res = await authFetch(`/agency/keywords/${id}`, { method: 'DELETE' });
-        if (res && res.ok) {
-            setDetails(prev => ({ ...prev, keywords: prev.keywords.filter(k => k.id !== id) }));
-        }
-    };
-
-    const handleAddSlot = async () => {
-        setLoading(true);
-        try {
-            const res = await authFetch(`/agency/add-slot`, {
-                method: "POST",
-                body: JSON.stringify({ locationId: location.location_id })
-            });
-            if (res && res.ok) {
-                const data = await res.json();
-                setDetails(prev => ({
-                    ...prev,
-                    slots: [...prev.slots, {
-                        slot_id: data.slot_id,
-                        slot_name: data.slot_name,
-                        phone_number: null,
-                        priority: data.slot_id
-                    }]
-                }));
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Error creando dispositivo");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleDeleteSlot = async (slotId) => {
-        if (!confirm("¿Seguro que deseas eliminar este dispositivo? Se cerrará la sesión de WhatsApp.")) return;
-
-        setDeletingSlotId(slotId); // Activar carga para este slot específico
-
-        try {
-            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}`, {
-                method: "DELETE"
-            });
-
-            if (res && res.ok) {
-                setDetails(prev => ({
-                    ...prev,
-                    slots: prev.slots.filter(s => s.slot_id !== slotId)
-                }));
-            } else {
-                alert("No se pudo desvincular correctamente.");
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Error de conexión al eliminar.");
-        } finally {
-            setDeletingSlotId(null); // Desactivar carga
-        }
-    };
-
-    const editSlotName = async (slotId, currentName) => {
-        const newName = prompt("Nuevo nombre:", currentName || "");
-        if (newName && newName !== currentName) {
-            const res = await authFetch(`/config-slot`, {
-                method: "POST",
-                body: JSON.stringify({ locationId: location.location_id, slot: slotId, slotName: newName })
-            });
-            if (res && res.ok) {
-                setDetails(prev => ({
-                    ...prev,
-                    slots: prev.slots.map(s => s.slot_id === slotId ? { ...s, slot_name: newName } : s)
-                }));
-            }
-        }
+        await authFetch(`/agency/keywords/${id}`, { method: 'DELETE' });
+        loadData();
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-200 transform transition-all scale-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+
+                {/* Header */}
                 <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
                     <div>
                         <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                            <div className="bg-indigo-50 p-1.5 rounded text-indigo-600"><Smartphone size={20} /></div>
-                            {location.name || location.location_name || location.location_id}
+                            <Smartphone className="text-indigo-600" size={24} />
+                            {location.name}
                         </h2>
-                        <p className="text-xs text-gray-400 mt-1 ml-10">Configuración de Subcuenta</p>
+                        <p className="text-sm text-gray-500">Gestión individual de dispositivos</p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition-colors"><X size={24} /></button>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={24} /></button>
                 </div>
 
-                <div className="flex border-b border-gray-100 px-6 bg-gray-50/50">
-                    <TabButton active={activeTab === 'slots'} onClick={() => setActiveTab('slots')} icon={<Smartphone size={16} />} label="Dispositivos" />
-                    <TabButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<Settings size={16} />} label="Configuración" />
-                    <TabButton active={activeTab === 'keywords'} onClick={() => setActiveTab('keywords')} icon={<Tag size={16} />} label="Palabras Clave" />
-                </div>
+                <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
 
-                <div className="flex-1 overflow-y-auto p-6 bg-gray-50/30">
+                    <div className="flex justify-end mb-6">
+                        <button onClick={handleAddSlot} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 shadow-md transition">
+                            <Plus size={18} /> Agregar Nuevo Número
+                        </button>
+                    </div>
+
                     {loading ? (
-                        <div className="flex justify-center items-center h-40 text-indigo-600"><RefreshCw className="animate-spin" /></div>
+                        <div className="flex justify-center p-10"><RefreshCw className="animate-spin text-indigo-600" /></div>
+                    ) : slots.length === 0 ? (
+                        <div className="text-center py-10 border-2 border-dashed border-gray-300 rounded-xl">No hay números configurados.</div>
                     ) : (
-                        <>
-                            {activeTab === 'slots' && (
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center mb-4 px-1">
-                                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Gestión de Conexiones</h3>
-                                        <button onClick={handleAddSlot} className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700 transition shadow-sm hover:shadow">
-                                            <Plus size={14} /> Nuevo Dispositivo
-                                        </button>
-                                    </div>
+                        <div className="space-y-4">
+                            {slots.map(slot => {
+                                const isExpanded = expandedSlotId === slot.slot_id;
+                                const isConnected = !!slot.phone_number;
+                                // Filtrar keywords de este slot
+                                const slotKeywords = keywords.filter(k => k.slot_id === slot.slot_id);
 
-                                    {details.slots.length === 0 ? (
-                                        <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-                                            <p className="text-gray-400 text-sm font-medium">No hay dispositivos configurados.</p>
+                                return (
+                                    <div key={slot.slot_id} className={`bg-white border rounded-xl transition-all duration-300 ${isExpanded ? 'border-indigo-500 ring-2 ring-indigo-500/20 shadow-lg' : 'border-gray-200 shadow-sm'}`}>
+
+                                        {/* Cabecera del Slot (Clickeable para expandir) */}
+                                        <div
+                                            className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 rounded-t-xl"
+                                            onClick={() => setExpandedSlotId(isExpanded ? null : slot.slot_id)}
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-gray-300'}`}></div>
+                                                <div>
+                                                    <h3 className="font-bold text-gray-800 text-lg">{slot.slot_name || `Slot ${slot.slot_id}`}</h3>
+                                                    <p className="text-xs text-gray-500 font-mono mt-0.5">
+                                                        {isConnected ? `+${slot.phone_number}` : 'Desconectado'} • ID: {slot.slot_id}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                                                    {isExpanded ? 'Ocultar Configuración' : 'Gestionar'}
+                                                </span>
+                                                {/* Botón borrar (prevenir propagación del click al acordeón) */}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.slot_id); }}
+                                                    className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
                                         </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                            {details.slots.map(slot => {
-                                                const isConnected = !!slot.phone_number;
-                                                return (
-                                                    <div key={slot.slot_id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm relative group hover:border-indigo-300 transition-all hover:shadow-md">
-                                                        <button
-                                                            onClick={() => handleDeleteSlot(slot.slot_id)}
-                                                            disabled={deletingSlotId === slot.slot_id}
-                                                            className="absolute top-2 right-2 p-1.5 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-md opacity-0 group-hover:opacity-100 transition-all"
-                                                        >
-                                                            {deletingSlotId === slot.slot_id ? (
-                                                                <Loader2 size={14} className="animate-spin text-red-500" />
-                                                            ) : (
-                                                                <Trash2 size={14} />
-                                                            )}
-                                                        </button>                                                        <div className={`absolute top-0 left-0 w-1.5 h-full rounded-l-xl ${isConnected ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
-                                                        <div className="pl-3">
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Slot {slot.slot_id}</span>
-                                                                {isConnected && <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>}
-                                                            </div>
-                                                            <div className="flex items-center gap-2 mb-3">
-                                                                <span className="font-bold text-gray-800 text-sm truncate max-w-[120px]" title={slot.slot_name}>
-                                                                    {slot.slot_name || `Dispositivo #${slot.slot_id}`}
-                                                                </span>
-                                                                <button onClick={() => editSlotName(slot.slot_id, slot.slot_name)} className="text-gray-300 hover:text-indigo-600 transition"><Edit2 size={12} /></button>
-                                                            </div>
-                                                            <div className={`text-xs font-mono px-2 py-1 rounded border inline-block ${isConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-gray-50 text-gray-500 border-gray-100'}`}>
-                                                                {isConnected ? `+${slot.phone_number}` : 'Desconectado'}
-                                                            </div>
+
+                                        {/* Cuerpo Expandible (Configuración y Keywords) */}
+                                        {isExpanded && (
+                                            <div className="border-t border-gray-100 p-6 bg-gray-50/50 rounded-b-xl animate-in slide-in-from-top-2">
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+                                                    {/* Columna 1: Configuración */}
+                                                    <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                                                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                                            <Settings size={14} /> Preferencias del Número
+                                                        </h4>
+                                                        <div className="space-y-4">
+                                                            <SettingRow
+                                                                label="Firma de Origen"
+                                                                desc="Añadir 'Source: [Nombre]' al final."
+                                                                checked={slot.settings?.show_source_label ?? true}
+                                                                onChange={() => toggleSlotSetting(slot.slot_id, 'show_source_label', slot.settings)}
+                                                            />
+                                                            <SettingRow
+                                                                label="Transcripción IA"
+                                                                desc="Convertir audios a texto."
+                                                                checked={slot.settings?.transcribe_audio ?? true}
+                                                                onChange={() => toggleSlotSetting(slot.slot_id, 'transcribe_audio', slot.settings)}
+                                                            />
+                                                            <SettingRow
+                                                                label="Crear Contactos"
+                                                                desc="Registrar leads desconocidos en CRM."
+                                                                checked={slot.settings?.create_unknown_contacts ?? true}
+                                                                onChange={() => toggleSlotSetting(slot.slot_id, 'create_unknown_contacts', slot.settings)}
+                                                            />
+                                                            <SettingRow
+                                                                label="Alertas Desconexión"
+                                                                desc="Avisar si se cierra la sesión."
+                                                                checked={slot.settings?.send_disconnect_message ?? true}
+                                                                onChange={() => toggleSlotSetting(slot.slot_id, 'send_disconnect_message', slot.settings)}
+                                                            />
                                                         </div>
                                                     </div>
-                                                )
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
 
-                            {activeTab === 'settings' && (
-                                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
-                                    <SettingRow label="Firma de Origen" desc='Añade "Source: [Nombre]" al final de los mensajes.' checked={details.settings?.show_source_label ?? true} onChange={() => toggleSetting('show_source_label')} />
-                                    <div className="h-px bg-gray-100"></div>
-                                    <SettingRow label="Transcripción IA" desc='Convierte notas de voz a texto automáticamente.' checked={details.settings?.transcribe_audio ?? true} onChange={() => toggleSetting('transcribe_audio')} />
-                                    <div className="h-px bg-gray-100"></div>
-                                    <SettingRow label="Auto-Contactos" desc='Crea contactos desconocidos en el CRM.' checked={details.settings?.create_unknown_contacts ?? true} onChange={() => toggleSetting('create_unknown_contacts')} />
-                                    <div className="h-px bg-gray-100"></div>
-                                    <SettingRow
-                                        label="Alertas de Desconexión"
-                                        desc="Enviar mensaje de WhatsApp al usuario si se cierra la sesión."
-                                        checked={details.settings?.send_disconnect_message ?? true}
-                                        onChange={() => toggleSetting('send_disconnect_message')}
-                                    />
-                                </div>
-                            )}
+                                                    {/* Columna 2: Keywords */}
+                                                    <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                                                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                                            <Tag size={14} /> Etiquetas Automáticas (Keywords)
+                                                        </h4>
 
-                            {activeTab === 'keywords' && (
-                                <div className="space-y-6">
-                                    <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                                        <h3 className="text-xs font-bold text-indigo-800 mb-3 uppercase">Nueva Regla de Etiquetado</h3>
-                                        <form onSubmit={handleAddKeyword} className="flex gap-2">
-                                            <input name="keyword" required placeholder='Si el cliente dice... (ej: "precio")' className="flex-1 border border-indigo-100 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                            <input name="tag" required placeholder='Agregar tag... (ej: "interesado")' className="flex-1 border border-indigo-100 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                            <button type="submit" className="bg-indigo-600 text-white px-4 rounded-lg hover:bg-indigo-700 transition shadow-sm"><Plus size={20} /></button>
-                                        </form>
-                                    </div>
+                                                        {/* Formulario Keyword */}
+                                                        <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-2 mb-4">
+                                                            <input name="keyword" required placeholder="Si dice..." className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                            <input name="tag" required placeholder="Tag..." className="w-1/3 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                            <button type="submit" className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700"><Plus size={18} /></button>
+                                                        </form>
 
-                                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                                        {details.keywords.length === 0 ? (
-                                            <div className="p-8 text-center text-gray-400 text-sm">No hay reglas definidas.</div>
-                                        ) : (
-                                            <table className="w-full text-left text-sm">
-                                                <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase">
-                                                    <tr>
-                                                        <th className="px-4 py-3 font-semibold">Mensaje contiene</th>
-                                                        <th className="px-4 py-3 font-semibold">Acción (Tag)</th>
-                                                        <th className="px-4 py-3 text-right"></th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100">
-                                                    {details.keywords.map(k => (
-                                                        <tr key={k.id} className="hover:bg-gray-50 transition">
-                                                            <td className="px-4 py-3 text-gray-900 font-medium">"{k.keyword}"</td>
-                                                            <td className="px-4 py-3"><span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold border border-blue-200">{k.tag}</span></td>
-                                                            <td className="px-4 py-3 text-right"><button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-500 p-1.5 hover:bg-red-50 rounded-md transition"><Trash2 size={16} /></button></td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
+                                                        {/* Lista Keywords */}
+                                                        <div className="max-h-60 overflow-y-auto space-y-2">
+                                                            {slotKeywords.length === 0 ? (
+                                                                <p className="text-center text-xs text-gray-400 py-4">Sin reglas para este número.</p>
+                                                            ) : (
+                                                                slotKeywords.map(k => (
+                                                                    <div key={k.id} className="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
+                                                                        <div className="flex gap-2 items-center">
+                                                                            <span className="font-medium text-gray-700">"{k.keyword}"</span>
+                                                                            <span className="text-gray-400">→</span>
+                                                                            <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-bold">{k.tag}</span>
+                                                                        </div>
+                                                                        <button onClick={() => deleteKeyword(k.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
+                                                                    </div>
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
-                                </div>
-                            )}
-                        </>
+                                )
+                            })}
+                        </div>
                     )}
                 </div>
             </div>
