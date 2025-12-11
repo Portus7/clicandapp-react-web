@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
@@ -14,7 +14,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
     // Control de expansión y pestañas internas
     const [expandedSlotId, setExpandedSlotId] = useState(null);
-    const [activeSlotTab, setActiveSlotTab] = useState('general'); // 'general' | 'ghl' | 'keywords'
+    const [activeSlotTab, setActiveSlotTab] = useState('general'); // 'general' | 'ghl' | 'keywords' | 'groups'
+
+    // Estado para grupos
+    const [groups, setGroups] = useState([]);
+    const [loadingGroups, setLoadingGroups] = useState(false);
 
     const [deletingSlotId, setDeletingSlotId] = useState(null);
 
@@ -90,7 +94,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         }
     };
 
-    // Manejar apertura de slot
     const handleExpandSlot = (slotId) => {
         if (expandedSlotId === slotId) {
             setExpandedSlotId(null);
@@ -107,7 +110,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         create_unknown_contacts: true,
         send_disconnect_message: true,
         ghl_contact_tag: "",
-        ghl_assigned_user: ""
+        ghl_assigned_user: "",
+        groups: {} // Configuración de grupos
     });
 
     const toggleSlotSetting = async (slotId, key, currentSettings) => {
@@ -147,6 +151,52 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const deleteKeyword = async (id) => {
         await authFetch(`/agency/keywords/${id}`, { method: 'DELETE' });
         loadData();
+    };
+
+    // --- GRUPOS ---
+    const loadGroups = async (slotId) => {
+        setLoadingGroups(true);
+        setGroups([]); // Limpiar anterior
+        try {
+            const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/groups`);
+            if (res.ok) {
+                const data = await res.json();
+                setGroups(Array.isArray(data) ? data : []);
+            }
+        } catch (e) { console.error(e); }
+        setLoadingGroups(false);
+    };
+
+    const toggleGroupActive = async (slotId, groupJid, groupName, currentSettings) => {
+        const safeSettings = { ...getSafeSettings(currentSettings), ...currentSettings };
+        const groupsConfig = safeSettings.groups || {};
+
+        // Invertir estado
+        const isActive = !(groupsConfig[groupJid]?.active);
+
+        const newGroupsConfig = {
+            ...groupsConfig,
+            [groupJid]: { active: isActive, name: groupName }
+        };
+
+        const newSettings = { ...safeSettings, groups: newGroupsConfig };
+        updateSettingsBackend(slotId, newSettings);
+    };
+
+    const handleSyncMembers = async (slotId, groupJid) => {
+        if (!confirm("Esto creará contactos en GHL para todos los miembros del grupo (excepto tú). ¿Continuar?")) return;
+
+        // UI Feedback inmediato (opcional)
+        alert("Sincronización iniciada en segundo plano. Esto puede tomar unos minutos dependiendo de la cantidad de miembros.");
+
+        try {
+            await authFetch(`/agency/slots/${location.location_id}/${slotId}/groups/sync-members`, {
+                method: 'POST',
+                body: JSON.stringify({ groupJid })
+            });
+        } catch (e) {
+            alert("Error iniciando sincronización.");
+        }
     };
 
     return (
@@ -237,22 +287,43 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                             <div className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/50 rounded-b-xl animate-in slide-in-from-top-2">
 
                                                 {/* NAVEGACIÓN DE TABS */}
-                                                <div className="flex border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50 px-4">
-                                                    <button onClick={() => setActiveSlotTab('general')} className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeSlotTab === 'general' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
-                                                        <Settings size={16} /> General
-                                                    </button>
-                                                    <button onClick={() => setActiveSlotTab('ghl')} className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeSlotTab === 'ghl' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
-                                                        <Link2 size={16} /> Integración GHL
-                                                    </button>
-                                                    <button onClick={() => setActiveSlotTab('keywords')} className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeSlotTab === 'keywords' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
-                                                        <Tag size={16} /> Keywords
-                                                    </button>
+                                                <div className="flex border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50 px-4 overflow-x-auto">
+                                                    <TabButton
+                                                        active={activeSlotTab === 'general'}
+                                                        onClick={() => setActiveSlotTab('general')}
+                                                        icon={<Settings size={16} />}
+                                                        label="General"
+                                                    />
+                                                    <TabButton
+                                                        active={activeSlotTab === 'ghl'}
+                                                        onClick={() => setActiveSlotTab('ghl')}
+                                                        icon={<Link2 size={16} />}
+                                                        label="Integración GHL"
+                                                    />
+                                                    <TabButton
+                                                        active={activeSlotTab === 'keywords'}
+                                                        onClick={() => setActiveSlotTab('keywords')}
+                                                        icon={<MessageSquare size={16} />}
+                                                        label="Keywords"
+                                                    />
+                                                    {/* NUEVA TAB: GRUPOS (Solo si está conectado) */}
+                                                    <TabButton
+                                                        active={activeSlotTab === 'groups'}
+                                                        onClick={() => {
+                                                            if (!isConnected) return alert("Conecta WhatsApp primero.");
+                                                            setActiveSlotTab('groups');
+                                                            loadGroups(slot.slot_id);
+                                                        }}
+                                                        icon={<Users size={16} />}
+                                                        label="Grupos"
+                                                        disabled={!isConnected}
+                                                    />
                                                 </div>
 
                                                 {/* CONTENIDO DE TABS */}
                                                 <div className="p-6">
 
-                                                    {/* 1. GENERAL TAB */}
+                                                    {/* 1. GENERAL */}
                                                     {activeSlotTab === 'general' && (
                                                         <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm animate-in fade-in">
                                                             <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Comportamiento del Bot</h4>
@@ -285,7 +356,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
-                                                    {/* 2. GHL TAB */}
+                                                    {/* 2. GHL INTEGRATION */}
                                                     {activeSlotTab === 'ghl' && (
                                                         <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm animate-in fade-in">
                                                             <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Acciones CRM Automáticas</h4>
@@ -327,18 +398,17 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 </option>
                                                                             ))}
                                                                         </select>
-                                                                        {/* Icono Flecha */}
                                                                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
                                                                             <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
                                                                         </div>
                                                                     </div>
-                                                                    <p className="text-xs text-gray-500 mt-1.5 ml-1">Las conversaciones entrantes se asignarán automáticamente a este usuario en GHL.</p>
+                                                                    <p className="text-xs text-gray-500 mt-1.5 ml-1">Las conversaciones entrantes se asignarán automáticamente a este usuario.</p>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     )}
 
-                                                    {/* 3. KEYWORDS TAB */}
+                                                    {/* 3. KEYWORDS */}
                                                     {activeSlotTab === 'keywords' && (
                                                         <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm animate-in fade-in">
                                                             <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -378,6 +448,62 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
+                                                    {/* 4. GRUPOS (NUEVO) */}
+                                                    {activeSlotTab === 'groups' && (
+                                                        <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm animate-in fade-in">
+                                                            <div className="flex justify-between items-center mb-4">
+                                                                <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                                                                    <Users size={14} /> Gestión de Grupos
+                                                                </h4>
+                                                                <button onClick={() => loadGroups(slot.slot_id)} className="text-indigo-600 hover:bg-indigo-50 p-1 rounded transition" title="Recargar grupos"><RefreshCw size={14} /></button>
+                                                            </div>
+
+                                                            <div className="mb-4 text-xs text-gray-500 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900">
+                                                                ℹ️ Activa un grupo para recibir sus mensajes en GHL. Usa "Sync" para importar miembros como contactos.
+                                                            </div>
+
+                                                            {loadingGroups ? (
+                                                                <div className="flex justify-center py-8"><RefreshCw className="animate-spin text-indigo-600" /></div>
+                                                            ) : groups.length === 0 ? (
+                                                                <p className="text-center text-sm text-gray-400 py-6">No se encontraron grupos o sesión desconectada.</p>
+                                                            ) : (
+                                                                <div className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
+                                                                    {groups.map(g => {
+                                                                        const isActive = currentSettings.groups?.[g.id]?.active;
+                                                                        return (
+                                                                            <div key={g.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 gap-3">
+                                                                                <div className="overflow-hidden">
+                                                                                    <h5 className="font-bold text-gray-800 dark:text-white text-sm truncate" title={g.subject}>{g.subject}</h5>
+                                                                                    <p className="text-xs text-gray-500">{g.participants} miembros</p>
+                                                                                </div>
+
+                                                                                <div className="flex items-center gap-4">
+                                                                                    {/* Toggle Activar */}
+                                                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                                                        <span className={`text-xs font-bold ${isActive ? 'text-emerald-600' : 'text-gray-400'}`}>{isActive ? 'ACTIVO' : 'OFF'}</span>
+                                                                                        <div className="relative inline-flex items-center">
+                                                                                            <input type="checkbox" className="sr-only peer" checked={!!isActive} onChange={() => toggleGroupActive(slot.slot_id, g.id, g.subject, currentSettings)} />
+                                                                                            <div className="w-9 h-5 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                                                                                        </div>
+                                                                                    </label>
+
+                                                                                    {/* Botón Sync Miembros */}
+                                                                                    <button
+                                                                                        onClick={() => handleSyncMembers(slot.slot_id, g.id)}
+                                                                                        className="p-2 text-indigo-600 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 rounded-lg transition border border-indigo-100 dark:border-indigo-900"
+                                                                                        title="Sincronizar Miembros a GHL"
+                                                                                    >
+                                                                                        <Users size={16} />
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+
                                                 </div>
                                             </div>
                                         )}
@@ -391,6 +517,21 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         </div>
     );
 }
+
+// Helpers
+const TabButton = ({ active, onClick, icon, label, disabled }) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap 
+        ${active
+                ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
+        {icon} {label}
+    </button>
+);
 
 const SettingRow = ({ label, desc, checked, onChange }) => (
     <div className="flex items-center justify-between group">
