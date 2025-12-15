@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import LocationDetailsModal from './LocationDetailsModal';
 import SubscriptionModal from './SubscriptionModal';
 import ThemeToggle from '../components/ThemeToggle';
@@ -7,10 +8,11 @@ import {
     LogOut, CreditCard, Zap, ChevronRight, AlertTriangle, CheckCircle2,
     LayoutDashboard, TrendingUp, ShieldCheck
 } from 'lucide-react';
-import { toast } from 'sonner';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 const INSTALL_APP_URL = import.meta.env.INSTALL_APP_URL || "https://gestion.clicandapp.com/integration/691623d58a49cdcb2c56ce9c";
+// 👇 CAMBIA ESTO POR TU NÚMERO DE SOPORTE REAL
+const SUPPORT_PHONE = "595984756159";
 
 export default function AgencyDashboard({ token, onLogout }) {
     const [storedAgencyId, setStoredAgencyId] = useState(localStorage.getItem("agencyId"));
@@ -34,7 +36,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             }
         });
 
-        if (res.status === 401 || res.status === 403) {
+        if (res.status === 401) {
             onLogout();
             throw new Error("Sesión expirada");
         }
@@ -48,9 +50,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const autoSyncAgency = async (locationId) => {
         setIsAutoSyncing(true);
-        // Usamos toast.promise para mostrar carga, éxito o error automáticamente
         toast.promise(
-            // La promesa a ejecutar
             (async () => {
                 await new Promise(r => setTimeout(r, 2000));
                 const res = await authFetch(`/agency/sync-ghl`, { method: "POST", body: JSON.stringify({ locationIdToVerify: locationId }) });
@@ -69,8 +69,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                 error: 'Hubo un problema verificando la instalación.'
             }
         );
-        setIsAutoSyncing(false);
-        if (AGENCY_ID) { fetchLocations(); fetchAccountInfo(); }
+
+        setTimeout(() => {
+            setIsAutoSyncing(false);
+            if (AGENCY_ID) {
+                fetchLocations();
+                fetchAccountInfo();
+            }
+        }, 1000);
     };
 
     const fetchLocations = () => {
@@ -100,7 +106,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         try {
             const res = await authFetch('/payments/portal', { method: 'POST' });
             const data = await res.json();
-            toast.dismiss(loadingToast); // Quitar loading
+            toast.dismiss(loadingToast);
 
             if (data.url) window.location.href = data.url;
             else toast.error("No se pudo abrir el portal de facturación.");
@@ -109,6 +115,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             toast.error("Error de conexión con el servidor de pagos.");
         }
     };
+
     useEffect(() => {
         if (AGENCY_ID) {
             fetchLocations();
@@ -116,7 +123,30 @@ export default function AgencyDashboard({ token, onLogout }) {
         }
     }, [AGENCY_ID]);
 
-    const handleInstallApp = () => window.location.href = INSTALL_APP_URL;
+    // ✅ NUEVA LÓGICA DE INSTALACIÓN CON VERIFICACIÓN
+    const handleInstallApp = () => {
+        // 1. Verificar si tenemos la info de la cuenta cargada
+        if (accountInfo) {
+            const { used_subagencies, max_subagencies } = accountInfo.limits;
+
+            // 2. Comprobar límites
+            if (used_subagencies >= max_subagencies) {
+                toast.error("Cupo de Subagencias Agotado", {
+                    description: `Has usado ${used_subagencies} de ${max_subagencies} licencias disponibles.`,
+                    duration: 6000,
+                    icon: <AlertTriangle className="text-amber-500" />,
+                    action: {
+                        label: 'Contactar Soporte',
+                        onClick: () => window.open(`https://wa.me/${SUPPORT_PHONE}`, "_blank")
+                    }
+                });
+                return; // ⛔ DETENER LA REDIRECCIÓN
+            }
+        }
+
+        // 3. Si todo bien (o info aun no carga), proceder
+        window.location.href = INSTALL_APP_URL;
+    };
 
     // --- COMPONENTES VISUALES ---
 
@@ -174,7 +204,6 @@ export default function AgencyDashboard({ token, onLogout }) {
     if (!AGENCY_ID) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 p-6 relative overflow-hidden">
-                {/* Fondo Decorativo */}
                 <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
                     <div className="absolute -top-20 -right-20 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl"></div>
                     <div className="absolute top-40 -left-20 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl"></div>
@@ -200,7 +229,6 @@ export default function AgencyDashboard({ token, onLogout }) {
         );
     }
 
-    // --- RENDERIZADO: PANEL PRINCIPAL ---
     return (
         <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0f1117] text-gray-900 dark:text-gray-100 font-sans pb-20 transition-colors duration-300">
 
@@ -232,17 +260,16 @@ export default function AgencyDashboard({ token, onLogout }) {
                 {accountInfo && (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
 
-                        {/* TARJETA DE PLAN (IZQUIERDA) */}
+                        {/* TARJETA DE PLAN */}
                         <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-200/60 dark:border-gray-800 relative overflow-hidden group">
-                            {/* Decoración de fondo */}
                             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 dark:bg-indigo-900/10 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/20"></div>
 
                             <div className="relative z-10 h-full flex flex-col justify-between">
                                 <div>
                                     <div className="flex items-center gap-2 mb-3">
                                         <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${accountInfo.plan === 'active'
-                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-900'
-                                            : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-900'
+                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-900'
+                                                : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-900'
                                             }`}>
                                             {accountInfo.plan === 'active' ? '● Activo' : '● Prueba'}
                                         </div>
@@ -271,7 +298,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                             </div>
                         </div>
 
-                        {/* TARJETA DE RECURSOS (DERECHA - DOBLE ANCHO) */}
+                        {/* TARJETA DE RECURSOS */}
                         <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-sm border border-gray-200/60 dark:border-gray-800 flex flex-col justify-center">
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
