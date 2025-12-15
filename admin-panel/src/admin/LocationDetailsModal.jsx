@@ -138,6 +138,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         send_disconnect_message: true,
         ghl_contact_tag: "",
         ghl_assigned_user: "",
+        routing_tag: "",
         groups: {}
     });
 
@@ -406,6 +407,22 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                             ))}
                                                                         </select>
                                                                     </div>
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                                                                        <div className="bg-emerald-100 dark:bg-emerald-900 p-1 rounded text-emerald-600"><Hash size={14} /></div>
+                                                                        Tag de Enrutamiento Exclusivo
+                                                                    </label>
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Ej: finanzas"
+                                                                        className="w-full text-sm p-3 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                                                                        value={currentSettings.routing_tag || ""}
+                                                                        onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, slot.settings)}
+                                                                    />
+                                                                    <p className="text-xs text-gray-500 mt-1.5 ml-1">
+                                                                        Si el contacto tiene el tag <strong>[PRIOR]: {currentSettings.routing_tag || "..."}</strong>, el sistema SIEMPRE responderá con este número.
+                                                                    </p>
                                                                 </div>
                                                             </div>
                                                         </div>
