@@ -318,8 +318,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         <Building2 size={20} />
                                     </div>
                                     <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${loc.status === 'active'
-                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900'
-                                            : 'bg-gray-50 text-gray-500 border-gray-100'
+                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900'
+                                        : 'bg-gray-50 text-gray-500 border-gray-100'
                                         }`}>
                                         {loc.status || 'Desconocido'}
                                     </div>
@@ -354,7 +354,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     />
                 )}
 
-                {/* MODAL SUSCRIPCIÓN (Se mantiene igual) */}
+                {/* MODAL SUSCRIPCIÓN (Se mantiene igual)    */}
                 {showSubModal && (
                     <SubscriptionModal
                         onClose={() => setShowSubModal(false)}
