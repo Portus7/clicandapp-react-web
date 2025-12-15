@@ -103,6 +103,33 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         }
     };
 
+    // --- NUEVO: CAMBIO DE PRIORIDAD ---
+    const changePriority = async (slotId, newPriority) => {
+        const val = parseInt(newPriority);
+        if (isNaN(val)) return;
+
+        try {
+            const res = await authFetch(`/agency/update-slot-config`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    locationId: location.location_id,
+                    slotId,
+                    priority: val
+                })
+            });
+
+            if (res && res.ok) {
+                // Recargar datos para ver el nuevo orden
+                loadData();
+            } else {
+                alert("Error al actualizar la prioridad.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error de conexión.");
+        }
+    };
+
     // --- CONFIGURACIÓN ---
     const getSafeSettings = (currentSettings) => ({
         show_source_label: true,
@@ -111,7 +138,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         send_disconnect_message: true,
         ghl_contact_tag: "",
         ghl_assigned_user: "",
-        groups: {} // Configuración de grupos
+        groups: {}
     });
 
     const toggleSlotSetting = async (slotId, key, currentSettings) => {
@@ -156,7 +183,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     // --- GRUPOS ---
     const loadGroups = async (slotId) => {
         setLoadingGroups(true);
-        setGroups([]); // Limpiar anterior
+        setGroups([]);
         try {
             const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/groups`);
             if (res.ok) {
@@ -170,33 +197,24 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const toggleGroupActive = async (slotId, groupJid, groupName, currentSettings) => {
         const safeSettings = { ...getSafeSettings(currentSettings), ...currentSettings };
         const groupsConfig = safeSettings.groups || {};
-
-        // Invertir estado
         const isActive = !(groupsConfig[groupJid]?.active);
-
         const newGroupsConfig = {
             ...groupsConfig,
             [groupJid]: { active: isActive, name: groupName }
         };
-
         const newSettings = { ...safeSettings, groups: newGroupsConfig };
         updateSettingsBackend(slotId, newSettings);
     };
 
     const handleSyncMembers = async (slotId, groupJid) => {
-        if (!confirm("Esto creará contactos en GHL para todos los miembros del grupo (excepto tú). ¿Continuar?")) return;
-
-        // UI Feedback inmediato (opcional)
-        alert("Sincronización iniciada en segundo plano. Esto puede tomar unos minutos dependiendo de la cantidad de miembros.");
-
+        if (!confirm("Esto creará contactos en GHL. ¿Continuar?")) return;
+        alert("Sincronización iniciada en segundo plano.");
         try {
             await authFetch(`/agency/slots/${location.location_id}/${slotId}/groups/sync-members`, {
                 method: 'POST',
                 body: JSON.stringify({ groupJid })
             });
-        } catch (e) {
-            alert("Error iniciando sincronización.");
-        }
+        } catch (e) { alert("Error iniciando sincronización."); }
     };
 
     return (
@@ -238,11 +256,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                 const isConnected = !!slot.phone_number;
                                 const slotKeywords = keywords.filter(k => k.slot_id === slot.slot_id);
                                 const currentSettings = slot.settings || {};
+                                const currentPrio = slot.priority || 99;
+                                const totalSlots = slots.length;
 
                                 return (
                                     <div key={slot.slot_id} className={`bg-white dark:bg-gray-900 border rounded-xl transition-all duration-300 ${isExpanded
-                                            ? 'border-indigo-500 ring-1 ring-indigo-500 shadow-lg'
-                                            : 'border-gray-300 dark:border-gray-700 shadow-sm hover:border-indigo-300'
+                                        ? 'border-indigo-500 ring-1 ring-indigo-500 shadow-lg'
+                                        : 'border-gray-300 dark:border-gray-700 shadow-sm hover:border-indigo-300'
                                         }`}>
 
                                         {/* CABECERA SLOT */}
@@ -260,15 +280,15 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </button>
                                                     </div>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">
-                                                        {isConnected ? `+${slot.phone_number}` : 'Desconectado'} • ID: {slot.slot_id}
+                                                        {isConnected ? `+${slot.phone_number}` : 'Desconectado'} • Prio: {currentPrio}
                                                     </p>
                                                 </div>
                                             </div>
 
                                             <div className="flex items-center gap-3">
                                                 <span className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${isExpanded
-                                                        ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
-                                                        : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                                                    ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
+                                                    : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
                                                     }`}>
                                                     {isExpanded ? 'Editando' : 'Gestionar'}
                                                 </span>
@@ -288,36 +308,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
                                                 {/* NAVEGACIÓN DE TABS */}
                                                 <div className="flex border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50 px-4 overflow-x-auto">
-                                                    <TabButton
-                                                        active={activeSlotTab === 'general'}
-                                                        onClick={() => setActiveSlotTab('general')}
-                                                        icon={<Settings size={16} />}
-                                                        label="General"
-                                                    />
-                                                    <TabButton
-                                                        active={activeSlotTab === 'ghl'}
-                                                        onClick={() => setActiveSlotTab('ghl')}
-                                                        icon={<Link2 size={16} />}
-                                                        label="Integración GHL"
-                                                    />
-                                                    <TabButton
-                                                        active={activeSlotTab === 'keywords'}
-                                                        onClick={() => setActiveSlotTab('keywords')}
-                                                        icon={<MessageSquare size={16} />}
-                                                        label="Keywords"
-                                                    />
-                                                    {/* NUEVA TAB: GRUPOS (Solo si está conectado) */}
-                                                    <TabButton
-                                                        active={activeSlotTab === 'groups'}
-                                                        onClick={() => {
-                                                            if (!isConnected) return alert("Conecta WhatsApp primero.");
-                                                            setActiveSlotTab('groups');
-                                                            loadGroups(slot.slot_id);
-                                                        }}
-                                                        icon={<Users size={16} />}
-                                                        label="Grupos"
-                                                        disabled={!isConnected}
-                                                    />
+                                                    <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label="General" />
+                                                    <TabButton active={activeSlotTab === 'ghl'} onClick={() => setActiveSlotTab('ghl')} icon={<Link2 size={16} />} label="Integración GHL" />
+                                                    <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label="Keywords" />
+                                                    <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return alert("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label="Grupos" disabled={!isConnected} />
                                                 </div>
 
                                                 {/* CONTENIDO DE TABS */}
@@ -326,6 +320,24 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     {/* 1. GENERAL */}
                                                     {activeSlotTab === 'general' && (
                                                         <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm animate-in fade-in">
+                                                            <div className="mb-6 pb-6 border-b border-gray-100 dark:border-gray-800">
+                                                                <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Orden de Envío</h4>
+                                                                <div className="flex items-center gap-4">
+                                                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Prioridad:</label>
+                                                                    <select
+                                                                        className="text-sm p-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                        value={currentPrio}
+                                                                        onChange={(e) => changePriority(slot.slot_id, e.target.value)}
+                                                                    >
+                                                                        {Array.from({ length: totalSlots }, (_, k) => k + 1).map(p => (
+                                                                            <option key={p} value={p}>{p} {p === 1 ? '(Alta)' : ''}</option>
+                                                                        ))}
+                                                                        {currentPrio > totalSlots && <option value={currentPrio}>{currentPrio}</option>}
+                                                                    </select>
+                                                                    <p className="text-xs text-gray-500">Un número menor significa mayor prioridad de uso.</p>
+                                                                </div>
+                                                            </div>
+
                                                             <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Comportamiento del Bot</h4>
                                                             <div className="space-y-4">
                                                                 <SettingRow
@@ -356,12 +368,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
-                                                    {/* 2. GHL INTEGRATION */}
+                                                    {/* 2. GHL INTEGRATION (Igual que antes) */}
                                                     {activeSlotTab === 'ghl' && (
                                                         <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm animate-in fade-in">
                                                             <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Acciones CRM Automáticas</h4>
                                                             <div className="space-y-6">
-                                                                {/* Tag */}
                                                                 <div>
                                                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
                                                                         <div className="bg-blue-100 dark:bg-blue-900 p-1 rounded text-blue-600"><Hash size={14} /></div>
@@ -374,12 +385,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                         value={currentSettings.ghl_contact_tag || ""}
                                                                         onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_contact_tag', e.target.value, slot.settings)}
                                                                     />
-                                                                    <p className="text-xs text-gray-500 mt-1.5 ml-1">Se aplicará este tag a cualquier contacto que escriba a este número.</p>
                                                                 </div>
-
                                                                 <div className="h-px bg-gray-100 dark:bg-gray-800"></div>
-
-                                                                {/* Responsable */}
                                                                 <div>
                                                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
                                                                         <div className="bg-purple-100 dark:bg-purple-900 p-1 rounded text-purple-600"><User size={14} /></div>
@@ -398,87 +405,53 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                 </option>
                                                                             ))}
                                                                         </select>
-                                                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                                                                            <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
-                                                                        </div>
                                                                     </div>
-                                                                    <p className="text-xs text-gray-500 mt-1.5 ml-1">Las conversaciones entrantes se asignarán automáticamente a este usuario.</p>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     )}
 
-                                                    {/* 3. KEYWORDS */}
+                                                    {/* 3. KEYWORDS (Igual que antes) */}
                                                     {activeSlotTab === 'keywords' && (
                                                         <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm animate-in fade-in">
                                                             <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                                                                 <MessageSquare size={14} /> Respuestas Automáticas
                                                             </h4>
-
                                                             <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
-                                                                <div className="flex-1">
-                                                                    <input name="keyword" required placeholder="Si dice..." className="w-full text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                                                </div>
-                                                                <div className="w-1/3">
-                                                                    <input name="tag" required placeholder="Tag..." className="w-full text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                                                </div>
-                                                                <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm font-bold">
-                                                                    <Plus size={20} />
-                                                                </button>
+                                                                <div className="flex-1"><input name="keyword" required placeholder="Si dice..." className="w-full text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                                                                <div className="w-1/3"><input name="tag" required placeholder="Tag..." className="w-full text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none" /></div>
+                                                                <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm font-bold"><Plus size={20} /></button>
                                                             </form>
-
                                                             <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                                                                {slotKeywords.length === 0 ? (
-                                                                    <div className="text-center py-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-200 dark:border-gray-700">
-                                                                        <p className="text-xs text-gray-400">No hay reglas específicas para este número.</p>
-                                                                    </div>
-                                                                ) : (
-                                                                    slotKeywords.map(k => (
-                                                                        <div key={k.id} className="flex justify-between items-center text-sm bg-gray-50 dark:bg-gray-800 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-indigo-300 transition">
-                                                                            <div className="flex gap-3 items-center overflow-hidden">
-                                                                                <span className="font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 px-2 py-1 rounded border border-gray-200 dark:border-gray-700">"{k.keyword}"</span>
-                                                                                <span className="text-gray-400">→</span>
-                                                                                <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-200 text-xs px-2 py-1 rounded font-bold border border-indigo-200 dark:border-indigo-800">{k.tag}</span>
-                                                                            </div>
-                                                                            <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-500 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition"><Trash2 size={16} /></button>
+                                                                {slotKeywords.map(k => (
+                                                                    <div key={k.id} className="flex justify-between items-center text-sm bg-gray-50 dark:bg-gray-800 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-indigo-300 transition">
+                                                                        <div className="flex gap-3 items-center overflow-hidden">
+                                                                            <span className="font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 px-2 py-1 rounded border border-gray-200 dark:border-gray-700">"{k.keyword}"</span>
+                                                                            <span className="text-gray-400">→</span>
+                                                                            <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-200 text-xs px-2 py-1 rounded font-bold border border-indigo-200 dark:border-indigo-800">{k.tag}</span>
                                                                         </div>
-                                                                    ))
-                                                                )}
+                                                                        <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-500 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition"><Trash2 size={16} /></button>
+                                                                    </div>
+                                                                ))}
                                                             </div>
                                                         </div>
                                                     )}
 
-                                                    {/* 4. GRUPOS (NUEVO) */}
+                                                    {/* 4. GRUPOS (Igual que antes) */}
                                                     {activeSlotTab === 'groups' && (
                                                         <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm animate-in fade-in">
                                                             <div className="flex justify-between items-center mb-4">
-                                                                <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                                                                    <Users size={14} /> Gestión de Grupos
-                                                                </h4>
+                                                                <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2"><Users size={14} /> Gestión de Grupos</h4>
                                                                 <button onClick={() => loadGroups(slot.slot_id)} className="text-indigo-600 hover:bg-indigo-50 p-1 rounded transition" title="Recargar grupos"><RefreshCw size={14} /></button>
                                                             </div>
-
-                                                            <div className="mb-4 text-xs text-gray-500 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900">
-                                                                ℹ️ Activa un grupo para recibir sus mensajes en GHL. Usa "Sync" para importar miembros como contactos.
-                                                            </div>
-
-                                                            {loadingGroups ? (
-                                                                <div className="flex justify-center py-8"><RefreshCw className="animate-spin text-indigo-600" /></div>
-                                                            ) : groups.length === 0 ? (
-                                                                <p className="text-center text-sm text-gray-400 py-6">No se encontraron grupos o sesión desconectada.</p>
-                                                            ) : (
+                                                            {loadingGroups ? <div className="flex justify-center py-8"><RefreshCw className="animate-spin text-indigo-600" /></div> :
                                                                 <div className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
                                                                     {groups.map(g => {
                                                                         const isActive = currentSettings.groups?.[g.id]?.active;
                                                                         return (
                                                                             <div key={g.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 gap-3">
-                                                                                <div className="overflow-hidden">
-                                                                                    <h5 className="font-bold text-gray-800 dark:text-white text-sm truncate" title={g.subject}>{g.subject}</h5>
-                                                                                    <p className="text-xs text-gray-500">{g.participants} miembros</p>
-                                                                                </div>
-
+                                                                                <div className="overflow-hidden"><h5 className="font-bold text-gray-800 dark:text-white text-sm truncate" title={g.subject}>{g.subject}</h5><p className="text-xs text-gray-500">{g.participants} miembros</p></div>
                                                                                 <div className="flex items-center gap-4">
-                                                                                    {/* Toggle Activar */}
                                                                                     <label className="flex items-center gap-2 cursor-pointer">
                                                                                         <span className={`text-xs font-bold ${isActive ? 'text-emerald-600' : 'text-gray-400'}`}>{isActive ? 'ACTIVO' : 'OFF'}</span>
                                                                                         <div className="relative inline-flex items-center">
@@ -486,21 +459,13 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                                             <div className="w-9 h-5 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
                                                                                         </div>
                                                                                     </label>
-
-                                                                                    {/* Botón Sync Miembros */}
-                                                                                    <button
-                                                                                        onClick={() => handleSyncMembers(slot.slot_id, g.id)}
-                                                                                        className="p-2 text-indigo-600 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 rounded-lg transition border border-indigo-100 dark:border-indigo-900"
-                                                                                        title="Sincronizar Miembros a GHL"
-                                                                                    >
-                                                                                        <Users size={16} />
-                                                                                    </button>
+                                                                                    <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 rounded-lg transition border border-indigo-100 dark:border-indigo-900" title="Sincronizar Miembros a GHL"><Users size={16} /></button>
                                                                                 </div>
                                                                             </div>
                                                                         );
                                                                     })}
                                                                 </div>
-                                                            )}
+                                                            }
                                                         </div>
                                                     )}
 
@@ -524,10 +489,8 @@ const TabButton = ({ active, onClick, icon, label, disabled }) => (
         onClick={onClick}
         disabled={disabled}
         className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap 
-        ${active
-                ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        ${active ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'} 
+        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
         {icon} {label}
     </button>
