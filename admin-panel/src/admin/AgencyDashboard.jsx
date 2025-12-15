@@ -1,9 +1,11 @@
 // src/admin/AgencyDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import LocationDetailsModal from './LocationDetailsModal'; // Componente externo
+import SubscriptionModal from './SubscriptionModal'; // ✅ NUEVO: Modal de planes
 import ThemeToggle from '../components/ThemeToggle'; // Componente de tema
 import {
-    Building2, Smartphone, Settings, Plus, RefreshCw, ExternalLink, Link2, LogOut
+    Building2, Smartphone, Settings, Plus, RefreshCw, ExternalLink,
+    LogOut, CreditCard, Zap // ✅ NUEVOS ICONOS
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
@@ -18,6 +20,10 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isAutoSyncing, setIsAutoSyncing] = useState(false);
+
+    // ✅ NUEVOS ESTADOS para Suscripción y Límites
+    const [showSubModal, setShowSubModal] = useState(false);
+    const [accountInfo, setAccountInfo] = useState(null);
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -60,7 +66,10 @@ export default function AgencyDashboard({ token, onLogout }) {
             console.error(e);
         } finally {
             setIsAutoSyncing(false);
-            if (AGENCY_ID) fetchLocations();
+            if (AGENCY_ID) {
+                fetchLocations();
+                fetchAccountInfo(); // Cargar info al terminar sync
+            }
         }
     };
 
@@ -76,7 +85,33 @@ export default function AgencyDashboard({ token, onLogout }) {
             .catch(() => setLoading(false));
     };
 
-    useEffect(() => { fetchLocations(); }, [AGENCY_ID]);
+    // ✅ NUEVO: Cargar información de la cuenta (Plan y Límites)
+    const fetchAccountInfo = async () => {
+        try {
+            const res = await authFetch('/agency/info');
+            if (res.ok) {
+                const data = await res.json();
+                setAccountInfo(data);
+            }
+        } catch (e) { console.error("Error info cuenta", e); }
+    };
+
+    // ✅ NUEVO: Abrir Portal de Facturación de Stripe
+    const handlePortal = async () => {
+        try {
+            const res = await authFetch('/payments/portal', { method: 'POST' });
+            const data = await res.json();
+            if (data.url) window.location.href = data.url;
+            else alert("Error abriendo portal o no tienes suscripción activa.");
+        } catch (e) { alert("Error de conexión"); }
+    };
+
+    useEffect(() => {
+        if (AGENCY_ID) {
+            fetchLocations();
+            fetchAccountInfo(); // ✅ Cargar info al montar si ya hay ID
+        }
+    }, [AGENCY_ID]);
 
     const handleInstallApp = () => window.location.href = INSTALL_APP_URL;
 
@@ -133,7 +168,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     </div>
                     <div className="flex items-center gap-3">
                         <ThemeToggle />
-                        <button onClick={fetchLocations} className="p-2.5 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 bg-gray-100 dark:bg-gray-800 rounded-lg transition hover:scale-105">
+                        <button onClick={() => { fetchLocations(); fetchAccountInfo(); }} className="p-2.5 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 bg-gray-100 dark:bg-gray-800 rounded-lg transition hover:scale-105" title="Recargar">
                             <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
                         </button>
                         <button onClick={handleInstallApp} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg font-bold shadow-md transition hover:-translate-y-0.5">
@@ -145,6 +180,80 @@ export default function AgencyDashboard({ token, onLogout }) {
                     </div>
                 </div>
 
+                {/* ✅ NUEVO: SECCIÓN DE ESTADO DE CUENTA Y LÍMITES */}
+                {accountInfo && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 animate-in fade-in slide-in-from-top-4">
+                        {/* Tarjeta 1: Plan */}
+                        <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-4 opacity-10 dark:opacity-20"><Zap size={60} /></div>
+                            <div>
+                                <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tu Plan</p>
+                                <h3 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 capitalize mt-1">
+                                    {accountInfo.plan === 'active' ? 'Premium' : accountInfo.plan}
+                                </h3>
+                                {accountInfo.plan === 'trial' && accountInfo.trial_ends && (
+                                    <p className="text-xs text-amber-600 dark:text-amber-400 font-bold mt-2 bg-amber-50 dark:bg-amber-900/30 py-1 px-2 rounded-lg inline-block border border-amber-100 dark:border-amber-900">
+                                        Vence: {new Date(accountInfo.trial_ends).toLocaleDateString()}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="mt-4 relative z-10">
+                                {accountInfo.plan === 'active' ? (
+                                    <button onClick={handlePortal} className="text-sm font-bold text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2 transition-colors">
+                                        <CreditCard size={16} /> Gestionar Facturación
+                                    </button>
+                                ) : (
+                                    <button onClick={() => setShowSubModal(true)} className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg font-bold shadow-md hover:shadow-lg transition transform hover:-translate-y-0.5 text-sm flex items-center justify-center gap-2">
+                                        <Zap size={16} fill="currentColor" /> Mejorar Plan Ahora
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Tarjeta 2: Uso Subagencias */}
+                        <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-center">
+                            <div className="flex justify-between items-end mb-3">
+                                <div>
+                                    <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Subagencias</p>
+                                    <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                                        {accountInfo.limits.used_subagencies} <span className="text-lg text-gray-400 font-normal">/ {accountInfo.limits.max_subagencies}</span>
+                                    </p>
+                                </div>
+                                <div className="p-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl"><Building2 size={24} /></div>
+                            </div>
+                            {/* Barra de progreso */}
+                            <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden">
+                                <div
+                                    className={`h-2.5 rounded-full transition-all duration-1000 ease-out ${accountInfo.limits.used_subagencies >= accountInfo.limits.max_subagencies ? 'bg-red-500' : 'bg-blue-600'
+                                        }`}
+                                    style={{ width: `${Math.min((accountInfo.limits.used_subagencies / accountInfo.limits.max_subagencies) * 100, 100)}%` }}
+                                ></div>
+                            </div>
+                        </div>
+
+                        {/* Tarjeta 3: Uso Slots */}
+                        <div className="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-center">
+                            <div className="flex justify-between items-end mb-3">
+                                <div>
+                                    <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Números (Slots)</p>
+                                    <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                                        {accountInfo.limits.used_slots} <span className="text-lg text-gray-400 font-normal">/ {accountInfo.limits.max_slots}</span>
+                                    </p>
+                                </div>
+                                <div className="p-2.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl"><Smartphone size={24} /></div>
+                            </div>
+                            {/* Barra de progreso */}
+                            <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden">
+                                <div
+                                    className={`h-2.5 rounded-full transition-all duration-1000 ease-out ${accountInfo.limits.used_slots >= accountInfo.limits.max_slots ? 'bg-red-500' : 'bg-emerald-500'
+                                        }`}
+                                    style={{ width: `${Math.min((accountInfo.limits.used_slots / accountInfo.limits.max_slots) * 100, 100)}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Lista de Locations */}
                 {loading ? (
                     <div className="text-center py-20">
@@ -155,7 +264,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-900 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700">
                         <Smartphone className="text-gray-300 dark:text-gray-600 mb-4" size={48} />
                         <h3 className="text-xl font-bold text-gray-500 dark:text-gray-400">Sin subcuentas vinculadas</h3>
-                        <button onClick={handleInstallApp} className="mt-4 text-indigo-600 font-bold hover:underline">Instalar App ahora</button>
+                        <button onClick={handleInstallApp} className="mt-4 text-indigo-600 dark:text-indigo-400 font-bold hover:underline">Instalar App ahora</button>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -199,6 +308,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                         token={token}
                         onLogout={onLogout}
                         onClose={() => setSelectedLocation(null)}
+                    />
+                )}
+
+                {/* ✅ NUEVO: MODAL SUSCRIPCIÓN */}
+                {showSubModal && (
+                    <SubscriptionModal
+                        onClose={() => setShowSubModal(false)}
+                        token={token}
                     />
                 )}
             </div>

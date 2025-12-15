@@ -66,11 +66,27 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
     // --- ACCIONES DE SLOT ---
     const handleAddSlot = async () => {
-        const res = await authFetch(`/agency/add-slot`, {
-            method: "POST",
-            body: JSON.stringify({ locationId: location.location_id })
-        });
-        if (res && res.ok) loadData();
+        try {
+            const res = await authFetch(`/agency/add-slot`, {
+                method: "POST",
+                body: JSON.stringify({ locationId: location.location_id })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                // Éxito: Recargamos la lista
+                loadData();
+            } else {
+                // Error (Límite alcanzado, etc): Mostramos alerta
+                // Puedes usar un toast más bonito si tienes uno configurado, 
+                // por ahora un alert nativo funciona perfecto para informar.
+                alert(`⚠️ ${data.error || "No se pudo agregar el dispositivo."}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error de conexión con el servidor.");
+        }
     };
 
     const handleDeleteSlot = async (slotId) => {
