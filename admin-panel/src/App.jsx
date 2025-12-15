@@ -34,15 +34,33 @@ function App() {
 
     return (
         <>
-            {/* ✅ AGREGAR EL TOASTER AQUÍ */}
+            {/* ✅ TOASTER DE SONNER CONFIGURADO */}
             <Toaster
                 position="top-center"
                 richColors
                 closeButton
-                theme="system" // Se adapta a tu ThemeContext automáticamente si usas la clase 'dark' en HTML
+                theme="system"
+                // Personalización con Tailwind para que coincida con tu diseño
+                toastOptions={{
+                    className: 'dark:bg-gray-800 dark:border-gray-700 dark:text-white bg-white border-gray-200 text-gray-900 shadow-lg rounded-xl',
+                    descriptionClassName: 'text-gray-500 dark:text-gray-400',
+                    actionButtonStyle: {
+                        background: '#4f46e5', // Color índigo de tu marca
+                        color: 'white',
+                        fontWeight: '600',
+                    },
+                    cancelButtonStyle: {
+                        background: '#f3f4f6',
+                        color: '#374151',
+                    },
+                    style: {
+                        // Ajustes finos de espaciado
+                        padding: '16px',
+                    }
+                }}
             />
 
-            {/* Lógica de Router Manual (igual que antes) */}
+            {/* Lógica de Router Manual */}
             {!token ? (
                 <WelcomeAuth onLoginSuccess={handleLoginSuccess} />
             ) : role === 'admin' ? (
@@ -50,8 +68,16 @@ function App() {
             ) : role === 'agency' ? (
                 <AgencyDashboard token={token} onLogout={logout} />
             ) : (
-                <div className="min-h-screen flex items-center justify-center">
-                    <p>Rol desconocido.</p> <button onClick={logout}>Salir</button>
+                <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-300">
+                    <div className="text-center">
+                        <p className="mb-4 text-lg">Rol de usuario desconocido.</p>
+                        <button
+                            onClick={logout}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                        >
+                            Cerrar Sesión
+                        </button>
+                    </div>
                 </div>
             )}
         </>
