@@ -5,7 +5,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import {
     Building2, Smartphone, Settings, Plus, RefreshCw, ExternalLink,
     LogOut, CreditCard, Zap, ChevronRight, AlertTriangle, CheckCircle2,
-    LayoutDashboard
+    LayoutDashboard, TrendingUp, ShieldCheck
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
@@ -110,34 +110,34 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     // --- COMPONENTES VISUALES ---
 
-    // Barra de Progreso Reutilizable
-    const UsageBar = ({ current, max, label, icon: Icon, colorClass }) => {
+    const UsageBar = ({ current, max, label, icon: Icon, colorClass, bgClass }) => {
         const percent = Math.min((current / max) * 100, 100);
         const isOverLimit = current > max;
 
         return (
-            <div className="group">
-                <div className="flex justify-between items-end mb-2">
-                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-                        <Icon size={16} />
-                        <span className="text-xs font-bold uppercase tracking-wider">{label}</span>
-                    </div>
-                    <div className="text-right">
-                        <span className={`text-lg font-bold ${isOverLimit ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>
-                            {current}
-                        </span>
-                        <span className="text-xs text-gray-400 font-medium"> / {max}</span>
+            <div className="relative group">
+                <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${bgClass} text-white dark:text-gray-100 shadow-sm`}>
+                            <Icon size={18} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">{label}</p>
+                            <p className={`text-xl font-extrabold leading-none mt-0.5 ${isOverLimit ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>
+                                {current} <span className="text-sm font-medium text-gray-400">/ {max}</span>
+                            </p>
+                        </div>
                     </div>
                 </div>
-                <div className="h-2 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-3 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden shadow-inner border border-gray-200 dark:border-gray-700/50">
                     <div
-                        className={`h-full rounded-full transition-all duration-1000 ${isOverLimit ? 'bg-red-500' : colorClass}`}
+                        className={`h-full rounded-full transition-all duration-1000 ease-out shadow-sm ${isOverLimit ? 'bg-red-500' : colorClass}`}
                         style={{ width: `${percent}%` }}
                     ></div>
                 </div>
                 {isOverLimit && (
-                    <p className="text-[10px] text-red-500 font-bold mt-1 flex items-center gap-1">
-                        <AlertTriangle size={10} /> Límite excedido. Actualiza tu plan.
+                    <p className="absolute -bottom-5 right-0 text-[10px] text-red-500 font-bold flex items-center gap-1 animate-pulse">
+                        <AlertTriangle size={10} /> Límite excedido
                     </p>
                 )}
             </div>
@@ -147,10 +147,14 @@ export default function AgencyDashboard({ token, onLogout }) {
     // --- RENDERIZADO: Auto-Sync ---
     if (isAutoSyncing) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900">
-                <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 text-center animate-pulse">
-                    <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">Sincronizando...</h2>
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors">
+                <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-2xl border border-white/20 dark:border-gray-700 text-center animate-in fade-in zoom-in duration-300">
+                    <div className="relative w-16 h-16 mx-auto mb-6">
+                        <div className="absolute inset-0 border-4 border-indigo-100 dark:border-indigo-900/30 rounded-full"></div>
+                        <div className="absolute inset-0 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Sincronizando</h2>
+                    <p className="text-sm text-gray-500">Conectando con tu agencia...</p>
                 </div>
             </div>
         );
@@ -159,192 +163,238 @@ export default function AgencyDashboard({ token, onLogout }) {
     // --- RENDERIZADO: Nueva Agencia ---
     if (!AGENCY_ID) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 p-6">
-                <div className="bg-white dark:bg-gray-900 p-10 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 text-center max-w-md w-full relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
-                    <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
-                        <Building2 className="text-indigo-600 dark:text-indigo-400" size={40} />
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 p-6 relative overflow-hidden">
+                {/* Fondo Decorativo */}
+                <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
+                    <div className="absolute -top-20 -right-20 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl"></div>
+                    <div className="absolute top-40 -left-20 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl"></div>
+                </div>
+
+                <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl p-10 rounded-3xl shadow-2xl border border-white/50 dark:border-gray-700 text-center max-w-md w-full relative z-10">
+                    <div className="w-20 h-20 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/30 transform rotate-3">
+                        <Building2 className="text-white" size={40} />
                     </div>
-                    <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-3">Bienvenido</h2>
+                    <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-3 tracking-tight">Bienvenido</h2>
                     <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-                        Para comenzar a automatizar WhatsApp, necesitamos vincular tu cuenta de GoHighLevel.
+                        Conecta tu cuenta de GoHighLevel para activar tu panel de automatización de WhatsApp.
                     </p>
-                    <button onClick={handleInstallApp} className="w-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-indigo-600 dark:hover:bg-indigo-50 px-6 py-4 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-3">
-                        <ExternalLink size={20} /> Conectar Agencia
+                    <button onClick={handleInstallApp} className="w-full group relative bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-indigo-600 dark:hover:bg-indigo-50 px-6 py-4 rounded-xl font-bold transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3 overflow-hidden">
+                        <span className="relative z-10 flex items-center gap-2">Conectar Agencia <ExternalLink size={18} /></span>
                     </button>
                     <div className="mt-8 flex justify-center items-center gap-4">
                         <ThemeToggle />
-                        <button onClick={onLogout} className="text-xs font-bold text-gray-400 hover:text-red-500 transition">CERRAR SESIÓN</button>
+                        <button onClick={onLogout} className="text-xs font-bold text-gray-400 hover:text-red-500 transition uppercase tracking-wider">Cerrar Sesión</button>
                     </div>
                 </div>
             </div>
         );
     }
 
+    // --- RENDERIZADO: PANEL PRINCIPAL ---
     return (
-        <div className="min-h-screen bg-[#F3F4F6] dark:bg-[#0B0F19] text-gray-900 dark:text-gray-100 font-sans pb-20 transition-colors duration-200">
+        <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0f1117] text-gray-900 dark:text-gray-100 font-sans pb-20 transition-colors duration-300">
 
-            {/* TOP BAR */}
-            <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-30 shadow-sm">
+            {/* 1. NAVBAR FLOTANTE */}
+            <div className="sticky top-0 z-40 bg-white/80 dark:bg-[#0f1117]/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800/50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">CA</div>
-                        <span className="font-bold text-lg tracking-tight hidden sm:block">Clic&App</span>
-                        <div className="h-4 w-px bg-gray-300 dark:bg-gray-700 mx-2"></div>
-                        <span className="text-xs font-mono text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{AGENCY_ID}</span>
+                    <div className="flex items-center gap-4">
+                        <div className="w-9 h-9 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-lg flex items-center justify-center text-white font-bold shadow-md shadow-indigo-500/20">
+                            CA
+                        </div>
+                        <div>
+                            <h1 className="font-bold text-base leading-tight text-gray-900 dark:text-white">Panel de Agencia</h1>
+                            <p className="text-[10px] font-mono text-gray-400 uppercase tracking-wider">{AGENCY_ID}</p>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <ThemeToggle />
-                        <button onClick={() => { fetchLocations(); fetchAccountInfo(); }} className="p-2 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition" title="Recargar">
-                            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
-                        </button>
-                        <button onClick={onLogout} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition" title="Salir">
+                        <div className="h-6 w-px bg-gray-200 dark:bg-gray-800 mx-1"></div>
+                        <button onClick={onLogout} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-all" title="Salir">
                             <LogOut size={18} />
                         </button>
                     </div>
                 </div>
             </div>
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
 
-                {/* 1. SECCIÓN DE ESTADO DE CUENTA (UNIFICADA) */}
+                {/* 2. HERO SECTION: ESTADO DE CUENTA */}
                 {accountInfo && (
-                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden relative">
-                        {/* Gradiente superior sutil */}
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
 
-                        <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-gray-100 dark:divide-gray-800">
+                        {/* TARJETA DE PLAN (IZQUIERDA) */}
+                        <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-200/60 dark:border-gray-800 relative overflow-hidden group">
+                            {/* Decoración de fondo */}
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 dark:bg-indigo-900/10 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/20"></div>
 
-                            {/* COLUMNA IZQUIERDA: PLAN & ACCIONES */}
-                            <div className="p-6 md:w-1/3 flex flex-col justify-between relative bg-gray-50/50 dark:bg-gray-900/50">
+                            <div className="relative z-10 h-full flex flex-col justify-between">
                                 <div>
-                                    <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                        <Zap size={14} className="text-yellow-500" fill="currentColor" /> Tu Suscripción
-                                    </h2>
-                                    <div className="flex items-baseline gap-2 mb-1">
-                                        <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white capitalize">
-                                            {accountInfo.plan === 'active' ? 'Plan Pro' : accountInfo.plan}
-                                        </h1>
-                                        {accountInfo.plan === 'active' && <CheckCircle2 size={20} className="text-emerald-500" />}
-                                    </div>
-
-                                    {accountInfo.plan === 'trial' && accountInfo.trial_ends && (
-                                        <div className="inline-flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 px-3 py-1.5 rounded-lg text-xs font-bold border border-amber-100 dark:border-amber-900 mb-4">
-                                            <AlertTriangle size={12} />
-                                            Prueba termina: {new Date(accountInfo.trial_ends).toLocaleDateString()}
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${accountInfo.plan === 'active'
+                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-900'
+                                                : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-900'
+                                            }`}>
+                                            {accountInfo.plan === 'active' ? '● Activo' : '● Prueba'}
                                         </div>
+                                    </div>
+                                    <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-1">
+                                        {accountInfo.plan === 'active' ? 'Plan Premium' : 'Plan Trial'}
+                                    </h2>
+                                    {accountInfo.plan === 'trial' && accountInfo.trial_ends && (
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                                            Vence el {new Date(accountInfo.trial_ends).toLocaleDateString()}
+                                        </p>
                                     )}
                                 </div>
 
                                 <div className="mt-6">
                                     {accountInfo.plan === 'active' ? (
-                                        <button onClick={handlePortal} className="w-full py-2.5 px-4 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 transition-all flex items-center justify-center gap-2 shadow-sm">
-                                            <CreditCard size={16} /> Gestionar Pagos
+                                        <button onClick={handlePortal} className="w-full flex items-center justify-center gap-2 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-500 text-gray-700 dark:text-gray-200 font-bold rounded-xl transition-all shadow-sm hover:shadow-md text-sm">
+                                            <CreditCard size={16} /> Facturación y Métodos
                                         </button>
                                     ) : (
-                                        <button onClick={() => setShowSubModal(true)} className="w-full py-3 px-4 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl text-sm font-bold hover:bg-indigo-600 dark:hover:bg-indigo-50 transition-all shadow-lg hover:shadow-indigo-500/20 flex items-center justify-center gap-2 group">
-                                            <Zap size={16} className="group-hover:fill-current" /> Actualizar a Premium
+                                        <button onClick={() => setShowSubModal(true)} className="w-full flex items-center justify-center gap-2 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold rounded-xl transition-all shadow-lg shadow-gray-200 dark:shadow-none hover:scale-[1.02] active:scale-95 text-sm">
+                                            <Zap size={16} className="text-yellow-400 dark:text-yellow-600 fill-current" /> Mejorar Suscripción
                                         </button>
                                     )}
                                 </div>
                             </div>
+                        </div>
 
-                            {/* COLUMNA DERECHA: MÉTRICAS */}
-                            <div className="p-6 md:w-2/3 grid grid-cols-1 sm:grid-cols-2 gap-8 items-center bg-white dark:bg-gray-900">
+                        {/* TARJETA DE RECURSOS (DERECHA - DOBLE ANCHO) */}
+                        <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-sm border border-gray-200/60 dark:border-gray-800 flex flex-col justify-center">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <TrendingUp size={20} className="text-indigo-600 dark:text-indigo-400" /> Consumo de Recursos
+                                </h3>
+                                <button onClick={() => setShowSubModal(true)} className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
+                                    Aumentar Límites
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-10">
                                 <UsageBar
-                                    label="Subagencias Activas"
+                                    label="Subcuentas"
                                     icon={Building2}
                                     current={accountInfo.limits.used_subagencies}
                                     max={accountInfo.limits.max_subagencies}
-                                    colorClass="bg-indigo-500"
+                                    colorClass="bg-gradient-to-r from-blue-500 to-indigo-600"
+                                    bgClass="bg-indigo-600"
                                 />
                                 <UsageBar
-                                    label="Números Conectados (Slots)"
+                                    label="Números (Slots)"
                                     icon={Smartphone}
                                     current={accountInfo.limits.used_slots}
                                     max={accountInfo.limits.max_slots}
-                                    colorClass="bg-emerald-500"
+                                    colorClass="bg-gradient-to-r from-emerald-400 to-teal-500"
+                                    bgClass="bg-teal-600"
                                 />
-
-                                <div className="sm:col-span-2 mt-2 pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between text-xs text-gray-400">
-                                    <span>Recursos actualizados en tiempo real</span>
-                                    <button onClick={() => setShowSubModal(true)} className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline">
-                                        ¿Necesitas más capacidad?
-                                    </button>
-                                </div>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* 2. BARRA DE ACCIÓN SUBCUENTAS */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <LayoutDashboard size={20} className="text-gray-400" /> Subcuentas
-                        </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestiona tus conexiones de WhatsApp por ubicación.</p>
+                {/* 3. ZONA DE SUBCUENTAS */}
+                <div>
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <LayoutDashboard size={22} className="text-gray-400" /> Subcuentas Vinculadas
+                            </h2>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => { fetchLocations(); fetchAccountInfo(); }}
+                                className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition shadow-sm hover:shadow"
+                            >
+                                <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+                            </button>
+                            <button
+                                onClick={handleInstallApp}
+                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 dark:shadow-none transition-all hover:translate-y-px active:translate-y-0.5"
+                            >
+                                <Plus size={18} /> <span className="hidden sm:inline">Nueva Subcuenta</span>
+                            </button>
+                        </div>
                     </div>
-                    <button onClick={handleInstallApp} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md shadow-indigo-200 dark:shadow-none transition flex items-center gap-2">
-                        <Plus size={18} /> Nueva Subcuenta
-                    </button>
+
+                    {/* GRID DE SUBCUENTAS */}
+                    {loading ? (
+                        <div className="py-24 text-center">
+                            <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
+                            <p className="text-gray-400 font-medium">Cargando subcuentas...</p>
+                        </div>
+                    ) : locations.length === 0 ? (
+                        <div className="bg-white dark:bg-gray-900 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-800 p-16 text-center">
+                            <div className="w-20 h-20 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Building2 className="text-gray-300 dark:text-gray-600" size={32} />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No hay subcuentas activas</h3>
+                            <p className="text-gray-500 mb-8 max-w-sm mx-auto">Tus subcuentas aparecerán aquí una vez que instales la aplicación en una ubicación de GHL.</p>
+                            <button onClick={handleInstallApp} className="text-indigo-600 font-bold hover:underline flex items-center justify-center gap-1 mx-auto">
+                                Instalar App ahora <ExternalLink size={14} />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {locations.map(loc => (
+                                <div
+                                    key={loc.location_id}
+                                    onClick={() => setSelectedLocation(loc)}
+                                    className="group bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 relative overflow-hidden"
+                                >
+                                    {/* Cabecera Tarjeta */}
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-50 to-white dark:from-gray-800 dark:to-gray-800 border border-indigo-50 dark:border-gray-700 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm group-hover:scale-110 transition-transform duration-300">
+                                            <Building2 size={24} />
+                                        </div>
+                                        {loc.status === 'active' ? (
+                                            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
+                                                <CheckCircle2 size={12} /> Activo
+                                            </div>
+                                        ) : (
+                                            <div className="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                                                {loc.status}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Info Principal */}
+                                    <div className="mb-6">
+                                        <h3 className="font-bold text-gray-900 dark:text-white text-lg mb-1 truncate pr-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                            {loc.name || "Ubicación Sin Nombre"}
+                                        </h3>
+                                        <p className="text-xs font-mono text-gray-400 bg-gray-50 dark:bg-gray-800/50 inline-block px-1.5 py-0.5 rounded border border-gray-100 dark:border-gray-800">
+                                            {loc.location_id}
+                                        </p>
+                                    </div>
+
+                                    {/* Footer Tarjeta */}
+                                    <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800">
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex -space-x-2">
+                                                {[...Array(Math.min(3, loc.total_slots || 0))].map((_, i) => (
+                                                    <div key={i} className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 border-2 border-white dark:border-gray-900 flex items-center justify-center text-[10px] text-indigo-600">
+                                                        <Smartphone size={12} />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
+                                                {loc.total_slots || 0} Slots
+                                            </span>
+                                        </div>
+
+                                        <span className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                            <ChevronRight size={16} />
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
-                {/* 3. GRID DE SUBCUENTAS (CARDS REDISEÑADAS) */}
-                {loading ? (
-                    <div className="py-20 text-center">
-                        <RefreshCw className="animate-spin mx-auto text-indigo-500 mb-4" size={32} />
-                        <p className="text-gray-400 font-medium">Cargando tus subcuentas...</p>
-                    </div>
-                ) : locations.length === 0 ? (
-                    <div className="bg-white dark:bg-gray-900 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-800 p-12 text-center">
-                        <div className="w-16 h-16 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Building2 className="text-gray-400" size={24} />
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">No tienes subcuentas</h3>
-                        <p className="text-gray-500 mb-6">Conecta tu primera cuenta de GHL para empezar.</p>
-                        <button onClick={handleInstallApp} className="text-indigo-600 font-bold hover:underline">Instalar App ahora</button>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {locations.map(loc => (
-                            <div
-                                key={loc.location_id}
-                                onClick={() => setSelectedLocation(loc)}
-                                className="group bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-700 transition-all duration-300 cursor-pointer relative overflow-hidden"
-                            >
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform duration-300">
-                                        <Building2 size={20} />
-                                    </div>
-                                    <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${loc.status === 'active'
-                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900'
-                                        : 'bg-gray-50 text-gray-500 border-gray-100'
-                                        }`}>
-                                        {loc.status || 'Desconocido'}
-                                    </div>
-                                </div>
-
-                                <h3 className="font-bold text-gray-900 dark:text-white text-lg mb-1 truncate pr-4 group-hover:text-indigo-600 transition-colors">
-                                    {loc.name || "Sin Nombre"}
-                                </h3>
-                                <p className="text-xs font-mono text-gray-400 mb-6">{loc.location_id}</p>
-
-                                <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800">
-                                    <div className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300">
-                                        <Smartphone size={16} className="text-gray-400" />
-                                        {loc.total_slots || 0} Slots
-                                    </div>
-                                    <span className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                                        <ChevronRight size={16} />
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* MODAL DETALLES (Se mantiene igual) */}
+                {/* MODALES */}
                 {selectedLocation && (
                     <LocationDetailsModal
                         location={selectedLocation}
@@ -354,7 +404,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                     />
                 )}
 
-                {/* MODAL SUSCRIPCIÓN (Se mantiene igual)    */}
                 {showSubModal && (
                     <SubscriptionModal
                         onClose={() => setShowSubModal(false)}
