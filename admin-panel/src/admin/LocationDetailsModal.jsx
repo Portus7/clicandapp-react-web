@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner'; // ✅ Importamos Sonner
 import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
-    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users
+    RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle
 } from 'lucide-react';
-import { toast } from 'sonner';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 
@@ -13,16 +13,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [ghlUsers, setGhlUsers] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Control de expansión y pestañas internas
     const [expandedSlotId, setExpandedSlotId] = useState(null);
-    const [activeSlotTab, setActiveSlotTab] = useState('general'); // 'general' | 'ghl' | 'keywords' | 'groups'
-
-    // Estado para grupos
+    const [activeSlotTab, setActiveSlotTab] = useState('general');
     const [groups, setGroups] = useState([]);
     const [loadingGroups, setLoadingGroups] = useState(false);
-
     const [deletingSlotId, setDeletingSlotId] = useState(null);
 
+    // ✅ FIX: Solo cerrar sesión si es 401 (Token inválido). 
+    // El 403 lo dejamos pasar porque lo usamos para "Límite alcanzado".
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
             ...options,
@@ -32,8 +30,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 'Authorization': `Bearer ${token}`
             }
         });
-        if (res.status === 401 || res.status === 403) {
-            onLogout(); onClose(); return null;
+
+        if (res.status === 401) {
+            onLogout();
+            onClose();
+            return null;
         }
         return res;
     };
@@ -46,79 +47,92 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         setLoading(true);
         try {
             const detailsRes = await authFetch(`/agency/location-details/${location.location_id}`);
-            const detailsData = await detailsRes.json();
-
-            if (detailsData) {
+            if (detailsRes && detailsRes.ok) {
+                const detailsData = await detailsRes.json();
                 setSlots(detailsData.slots || []);
                 setKeywords(detailsData.keywords || []);
             }
 
             const usersRes = await authFetch(`/agency/ghl-users/${location.location_id}`);
-            if (usersRes.ok) {
+            if (usersRes && usersRes.ok) {
                 const usersData = await usersRes.json();
                 setGhlUsers(usersData || []);
             }
         } catch (e) {
-            console.error(e);
+            toast.error("Error al cargar datos", { description: "Revisa tu conexión." });
         } finally {
             setLoading(false);
         }
     };
 
     // --- ACCIONES DE SLOT ---
+
+    // ✅ FIX: Manejo correcto del límite de slots sin logout
     const handleAddSlot = async () => {
-        const loadingToast = toast.loading("Creando dispositivo...");
+        const loadingId = toast.loading("Agregando dispositivo...");
         try {
             const res = await authFetch(`/agency/add-slot`, {
                 method: "POST",
                 body: JSON.stringify({ locationId: location.location_id })
             });
+
             const data = await res.json();
-            toast.dismiss(loadingToast);
+            toast.dismiss(loadingId);
 
             if (res.ok) {
-                toast.success("Dispositivo agregado correctamente");
+                toast.success("Dispositivo agregado", { description: "Ahora puedes vincularlo con QR." });
                 loadData();
+            } else if (res.status === 403) {
+                // ⛔ LÍMITE ALCANZADO
+                toast.error("Límite de Dispositivos Superado", {
+                    description: "Has alcanzado el máximo permitido por tu plan.",
+                    duration: 8000, // Que dure más para que lo lean
+                    action: {
+                        label: 'Contactar Soporte',
+                        onClick: () => window.open("https://wa.me/595984756159", "_blank") // Pon aquí tu número real
+                    },
+                    icon: <AlertTriangle className="text-amber-500" />
+                });
             } else {
-                // Aquí mostramos el error del backend (Límite alcanzado)
-                toast.error(data.error || "No se pudo agregar el dispositivo.");
+                toast.error("Error", { description: data.error || "No se pudo agregar." });
             }
         } catch (e) {
-            toast.dismiss(loadingToast);
-            toast.error("Error de conexión.");
+            toast.dismiss(loadingId);
+            toast.error("Error de red");
         }
     };
 
     const handleDeleteSlot = (slotId) => {
-        toast("¿Estás seguro?", {
-            description: "Se cerrará la sesión de WhatsApp y se eliminará el dispositivo.",
+        toast("¿Eliminar este dispositivo?", {
+            description: "Se cerrará la sesión de WhatsApp y se borrará la configuración.",
             action: {
-                label: 'Eliminar',
+                label: 'Eliminar Definitivamente',
                 onClick: async () => {
                     setDeletingSlotId(slotId);
                     const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}`, { method: "DELETE" });
                     setDeletingSlotId(null);
-                    if (res.ok) {
+                    if (res && res.ok) {
                         toast.success("Dispositivo eliminado");
                         loadData();
                     } else {
-                        toast.error("Error al eliminar");
+                        toast.error("No se pudo eliminar");
                     }
                 }
             },
-            cancel: { label: 'Cancelar' }, // Botón cancelar opcional
-            duration: 5000, // Dar tiempo para decidir
+            cancel: { label: 'Cancelar' }
         });
     };
 
     const editSlotName = async (slotId, currentName) => {
-        const newName = prompt("Nuevo nombre:", currentName || "");
+        // Usamos prompt nativo por simplicidad, o podrías hacer un custom toast con input
+        const newName = prompt("Nuevo nombre para el dispositivo:", currentName || "");
         if (newName && newName !== currentName) {
             const res = await authFetch(`/config-slot`, {
                 method: "POST",
                 body: JSON.stringify({ locationId: location.location_id, slot: slotId, slotName: newName })
             });
             if (res && res.ok) {
+                toast.success("Nombre actualizado");
                 setSlots(prev => prev.map(s => s.slot_id === slotId ? { ...s, slot_name: newName } : s));
             }
         }
@@ -129,11 +143,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             setExpandedSlotId(null);
         } else {
             setExpandedSlotId(slotId);
-            setActiveSlotTab('general'); // Reiniciar a la pestaña 1
+            setActiveSlotTab('general');
         }
     };
 
-    // --- NUEVO: CAMBIO DE PRIORIDAD ---
     const changePriority = async (slotId, newPriority) => {
         const val = parseInt(newPriority);
         if (isNaN(val)) return;
@@ -141,35 +154,22 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         try {
             const res = await authFetch(`/agency/update-slot-config`, {
                 method: 'POST',
-                body: JSON.stringify({
-                    locationId: location.location_id,
-                    slotId,
-                    priority: val
-                })
+                body: JSON.stringify({ locationId: location.location_id, slotId, priority: val })
             });
 
             if (res && res.ok) {
-                // Recargar datos para ver el nuevo orden
+                toast.success("Prioridad actualizada");
                 loadData();
             } else {
-                alert("Error al actualizar la prioridad.");
+                toast.error("Error al actualizar prioridad");
             }
-        } catch (e) {
-            console.error(e);
-            alert("Error de conexión.");
-        }
+        } catch (e) { toast.error("Error de conexión"); }
     };
 
     // --- CONFIGURACIÓN ---
     const getSafeSettings = (currentSettings) => ({
-        show_source_label: true,
-        transcribe_audio: true,
-        create_unknown_contacts: true,
-        send_disconnect_message: true,
-        ghl_contact_tag: "",
-        ghl_assigned_user: "",
-        routing_tag: "",
-        groups: {}
+        show_source_label: true, transcribe_audio: true, create_unknown_contacts: true,
+        send_disconnect_message: true, ghl_contact_tag: "", ghl_assigned_user: "", routing_tag: "", groups: {}
     });
 
     const toggleSlotSetting = async (slotId, key, currentSettings) => {
@@ -185,11 +185,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const updateSettingsBackend = async (slotId, newSettings) => {
+        // Optimistic update
         setSlots(prev => prev.map(s => s.slot_id === slotId ? { ...s, settings: newSettings } : s));
-        await authFetch(`/agency/slots/${location.location_id}/${slotId}/settings`, {
-            method: 'PUT',
-            body: JSON.stringify({ settings: newSettings })
-        });
+
+        try {
+            await authFetch(`/agency/slots/${location.location_id}/${slotId}/settings`, {
+                method: 'PUT',
+                body: JSON.stringify({ settings: newSettings })
+            });
+            // toast.success("Configuración guardada"); // Opcional, puede ser ruidoso
+        } catch (e) {
+            toast.error("Error guardando configuración");
+            loadData(); // Revertir
+        }
     };
 
     // --- KEYWORDS ---
@@ -199,16 +207,25 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         const keyword = formData.get('keyword');
         const tag = formData.get('tag');
 
+        if (!keyword || !tag) return toast.warning("Completa ambos campos");
+
         const res = await authFetch(`/agency/keywords`, {
             method: 'POST',
             body: JSON.stringify({ locationId: location.location_id, slotId, keyword, tag })
         });
-        if (res && res.ok) loadData();
+        if (res && res.ok) {
+            toast.success("Regla agregada");
+            e.target.reset();
+            loadData();
+        }
     };
 
     const deleteKeyword = async (id) => {
-        await authFetch(`/agency/keywords/${id}`, { method: 'DELETE' });
-        loadData();
+        const res = await authFetch(`/agency/keywords/${id}`, { method: 'DELETE' });
+        if (res && res.ok) {
+            toast.success("Regla eliminada");
+            loadData();
+        }
     };
 
     // --- GRUPOS ---
@@ -235,17 +252,22 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         };
         const newSettings = { ...safeSettings, groups: newGroupsConfig };
         updateSettingsBackend(slotId, newSettings);
+        if (isActive) toast.success(`Grupo "${groupName}" activado`);
+        else toast.info(`Grupo desactivado`);
     };
 
     const handleSyncMembers = async (slotId, groupJid) => {
         toast.promise(
-            authFetch(`/agency/slots/${location.location_id}/${slotId}/groups/sync-members`, {
-                method: 'POST',
-                body: JSON.stringify({ groupJid })
-            }),
+            async () => {
+                const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}/groups/sync-members`, {
+                    method: 'POST', body: JSON.stringify({ groupJid })
+                });
+                if (!res.ok) throw new Error("Fallo");
+                return res.json();
+            },
             {
                 loading: 'Iniciando sincronización...',
-                success: 'Sincronización en segundo plano iniciada.',
+                success: 'Sincronización en proceso. Los contactos aparecerán en GHL en breve.',
                 error: 'Error al iniciar la sincronización.'
             }
         );
@@ -345,7 +367,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     <TabButton active={activeSlotTab === 'general'} onClick={() => setActiveSlotTab('general')} icon={<Settings size={16} />} label="General" />
                                                     <TabButton active={activeSlotTab === 'ghl'} onClick={() => setActiveSlotTab('ghl')} icon={<Link2 size={16} />} label="Integración GHL" />
                                                     <TabButton active={activeSlotTab === 'keywords'} onClick={() => setActiveSlotTab('keywords')} icon={<MessageSquare size={16} />} label="Keywords" />
-                                                    <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return alert("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label="Grupos" disabled={!isConnected} />
+                                                    <TabButton active={activeSlotTab === 'groups'} onClick={() => { if (!isConnected) return toast.warning("Conecta WhatsApp primero."); setActiveSlotTab('groups'); loadGroups(slot.slot_id); }} icon={<Users size={16} />} label="Grupos" disabled={!isConnected} />
                                                 </div>
 
                                                 {/* CONTENIDO DE TABS */}
@@ -402,7 +424,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
-                                                    {/* 2. GHL INTEGRATION (Igual que antes) */}
+                                                    {/* 2. GHL INTEGRATION */}
                                                     {activeSlotTab === 'ghl' && (
                                                         <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm animate-in fade-in">
                                                             <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Acciones CRM Automáticas</h4>
@@ -454,14 +476,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                         onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, slot.settings)}
                                                                     />
                                                                     <p className="text-xs text-gray-500 mt-1.5 ml-1">
-                                                                        Si el contacto tiene el tag <strong>[PRIOR]: {currentSettings.routing_tag || "..."}</strong>, el sistema SIEMPRE responderá con este número.
+                                                                        Si el contacto tiene el tag <strong>[PRIOR]: {currentSettings.routing_tag || "..."}</strong>, se usará este número.
                                                                     </p>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     )}
 
-                                                    {/* 3. KEYWORDS (Igual que antes) */}
+                                                    {/* 3. KEYWORDS */}
                                                     {activeSlotTab === 'keywords' && (
                                                         <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm animate-in fade-in">
                                                             <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -487,7 +509,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
-                                                    {/* 4. GRUPOS (Igual que antes) */}
+                                                    {/* 4. GRUPOS */}
                                                     {activeSlotTab === 'groups' && (
                                                         <div className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm animate-in fade-in">
                                                             <div className="flex justify-between items-center mb-4">
