@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Toaster } from 'sonner';
 import AdminDashboard from './admin/Dashboard';
 import AgencyDashboard from './admin/AgencyDashboard';
 import WelcomeAuth from './admin/WelcomeAuth';
@@ -31,25 +32,29 @@ function App() {
         window.history.pushState({}, document.title, "/");
     };
 
-    // 1. Sin Token -> Bienvenida
-    if (!token) {
-        return <WelcomeAuth onLoginSuccess={handleLoginSuccess} />;
-    }
-
-    // 2. Rol Admin -> Panel Maestro
-    if (role === 'admin') {
-        return <AdminDashboard token={token} onLogout={logout} />;
-    }
-
-    // 3. Rol Agencia -> Panel Agencia
-    if (role === 'agency') {
-        return <AgencyDashboard token={token} onLogout={logout} />;
-    }
-
     return (
-        <div className="min-h-screen flex items-center justify-center">
-            <p>Rol desconocido.</p> <button onClick={logout}>Salir</button>
-        </div>
+        <>
+            {/* ✅ AGREGAR EL TOASTER AQUÍ */}
+            <Toaster
+                position="top-center"
+                richColors
+                closeButton
+                theme="system" // Se adapta a tu ThemeContext automáticamente si usas la clase 'dark' en HTML
+            />
+
+            {/* Lógica de Router Manual (igual que antes) */}
+            {!token ? (
+                <WelcomeAuth onLoginSuccess={handleLoginSuccess} />
+            ) : role === 'admin' ? (
+                <AdminDashboard token={token} onLogout={logout} />
+            ) : role === 'agency' ? (
+                <AgencyDashboard token={token} onLogout={logout} />
+            ) : (
+                <div className="min-h-screen flex items-center justify-center">
+                    <p>Rol desconocido.</p> <button onClick={logout}>Salir</button>
+                </div>
+            )}
+        </>
     );
 }
 

@@ -3,6 +3,7 @@ import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
     RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 
@@ -66,35 +67,48 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
     // --- ACCIONES DE SLOT ---
     const handleAddSlot = async () => {
+        const loadingToast = toast.loading("Creando dispositivo...");
         try {
             const res = await authFetch(`/agency/add-slot`, {
                 method: "POST",
                 body: JSON.stringify({ locationId: location.location_id })
             });
-
             const data = await res.json();
+            toast.dismiss(loadingToast);
 
             if (res.ok) {
-                // Éxito: Recargamos la lista
+                toast.success("Dispositivo agregado correctamente");
                 loadData();
             } else {
-                // Error (Límite alcanzado, etc): Mostramos alerta
-                // Puedes usar un toast más bonito si tienes uno configurado, 
-                // por ahora un alert nativo funciona perfecto para informar.
-                alert(`⚠️ ${data.error || "No se pudo agregar el dispositivo."}`);
+                // Aquí mostramos el error del backend (Límite alcanzado)
+                toast.error(data.error || "No se pudo agregar el dispositivo.");
             }
         } catch (e) {
-            console.error(e);
-            alert("Error de conexión con el servidor.");
+            toast.dismiss(loadingToast);
+            toast.error("Error de conexión.");
         }
     };
 
-    const handleDeleteSlot = async (slotId) => {
-        if (!confirm("¿Eliminar dispositivo? Se cerrará la sesión de WhatsApp.")) return;
-        setDeletingSlotId(slotId);
-        await authFetch(`/agency/slots/${location.location_id}/${slotId}`, { method: "DELETE" });
-        setDeletingSlotId(null);
-        loadData();
+    const handleDeleteSlot = (slotId) => {
+        toast("¿Estás seguro?", {
+            description: "Se cerrará la sesión de WhatsApp y se eliminará el dispositivo.",
+            action: {
+                label: 'Eliminar',
+                onClick: async () => {
+                    setDeletingSlotId(slotId);
+                    const res = await authFetch(`/agency/slots/${location.location_id}/${slotId}`, { method: "DELETE" });
+                    setDeletingSlotId(null);
+                    if (res.ok) {
+                        toast.success("Dispositivo eliminado");
+                        loadData();
+                    } else {
+                        toast.error("Error al eliminar");
+                    }
+                }
+            },
+            cancel: { label: 'Cancelar' }, // Botón cancelar opcional
+            duration: 5000, // Dar tiempo para decidir
+        });
     };
 
     const editSlotName = async (slotId, currentName) => {
@@ -224,14 +238,17 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     };
 
     const handleSyncMembers = async (slotId, groupJid) => {
-        if (!confirm("Esto creará contactos en GHL. ¿Continuar?")) return;
-        alert("Sincronización iniciada en segundo plano.");
-        try {
-            await authFetch(`/agency/slots/${location.location_id}/${slotId}/groups/sync-members`, {
+        toast.promise(
+            authFetch(`/agency/slots/${location.location_id}/${slotId}/groups/sync-members`, {
                 method: 'POST',
                 body: JSON.stringify({ groupJid })
-            });
-        } catch (e) { alert("Error iniciando sincronización."); }
+            }),
+            {
+                loading: 'Iniciando sincronización...',
+                success: 'Sincronización en segundo plano iniciada.',
+                error: 'Error al iniciar la sincronización.'
+            }
+        );
     };
 
     return (

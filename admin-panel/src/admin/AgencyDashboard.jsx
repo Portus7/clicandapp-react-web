@@ -7,6 +7,7 @@ import {
     LogOut, CreditCard, Zap, ChevronRight, AlertTriangle, CheckCircle2,
     LayoutDashboard, TrendingUp, ShieldCheck
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 const INSTALL_APP_URL = import.meta.env.INSTALL_APP_URL || "https://gestion.clicandapp.com/integration/691623d58a49cdcb2c56ce9c";
@@ -47,25 +48,29 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const autoSyncAgency = async (locationId) => {
         setIsAutoSyncing(true);
-        try {
-            await new Promise(r => setTimeout(r, 2000));
-            const res = await authFetch(`/agency/sync-ghl`, { method: "POST", body: JSON.stringify({ locationIdToVerify: locationId }) });
-            const data = await res.json();
-
-            if (data.success && data.newAgencyId) {
-                localStorage.setItem("agencyId", data.newAgencyId);
-                setStoredAgencyId(data.newAgencyId);
-                window.history.replaceState({}, document.title, window.location.pathname);
+        // Usamos toast.promise para mostrar carga, éxito o error automáticamente
+        toast.promise(
+            // La promesa a ejecutar
+            (async () => {
+                await new Promise(r => setTimeout(r, 2000));
+                const res = await authFetch(`/agency/sync-ghl`, { method: "POST", body: JSON.stringify({ locationIdToVerify: locationId }) });
+                const data = await res.json();
+                if (!data.success || !data.newAgencyId) throw new Error("No se pudo verificar la instalación.");
+                return data;
+            })(),
+            {
+                loading: 'Vinculando cuenta con GoHighLevel...',
+                success: (data) => {
+                    localStorage.setItem("agencyId", data.newAgencyId);
+                    setStoredAgencyId(data.newAgencyId);
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    return '¡Vinculación exitosa! Bienvenido.';
+                },
+                error: 'Hubo un problema verificando la instalación.'
             }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsAutoSyncing(false);
-            if (AGENCY_ID) {
-                fetchLocations();
-                fetchAccountInfo();
-            }
-        }
+        );
+        setIsAutoSyncing(false);
+        if (AGENCY_ID) { fetchLocations(); fetchAccountInfo(); }
     };
 
     const fetchLocations = () => {
@@ -91,14 +96,19 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     const handlePortal = async () => {
+        const loadingToast = toast.loading("Conectando con Stripe...");
         try {
             const res = await authFetch('/payments/portal', { method: 'POST' });
             const data = await res.json();
-            if (data.url) window.location.href = data.url;
-            else alert("Error abriendo portal o no tienes suscripción activa.");
-        } catch (e) { alert("Error de conexión"); }
-    };
+            toast.dismiss(loadingToast); // Quitar loading
 
+            if (data.url) window.location.href = data.url;
+            else toast.error("No se pudo abrir el portal de facturación.");
+        } catch (e) {
+            toast.dismiss(loadingToast);
+            toast.error("Error de conexión con el servidor de pagos.");
+        }
+    };
     useEffect(() => {
         if (AGENCY_ID) {
             fetchLocations();
@@ -231,8 +241,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <div>
                                     <div className="flex items-center gap-2 mb-3">
                                         <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${accountInfo.plan === 'active'
-                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-900'
-                                                : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-900'
+                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-900'
+                                            : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-900'
                                             }`}>
                                             {accountInfo.plan === 'active' ? '● Activo' : '● Prueba'}
                                         </div>
