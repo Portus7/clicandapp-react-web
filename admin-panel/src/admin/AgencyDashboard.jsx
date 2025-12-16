@@ -311,7 +311,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     )}
 
-                    {/* VISTA: SUBCUENTAS */}
+                    {/* VISTA: SUBCUENTAS (GRID + HUECOS VACÍOS) */}
                     {activeTab === 'subaccounts' && (
                         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
 
@@ -322,52 +322,97 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <input
                                         type="text"
                                         placeholder="Buscar por nombre o ID..."
-                                        className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                                         value={searchTerm}
                                         onChange={e => setSearchTerm(e.target.value)}
                                     />
                                 </div>
                                 <div className="flex gap-3">
-                                    <button onClick={fetchLocations} className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-gray-500 hover:text-indigo-600 transition"><RefreshCw size={20} className={loading ? "animate-spin" : ""} /></button>
-                                    <button onClick={handleInstallApp} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2"><Plus size={18} /> Nueva</button>
+                                    <button onClick={fetchLocations} className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 hover:text-indigo-600 transition"><RefreshCw size={20} className={loading ? "animate-spin" : ""} /></button>
+                                    <button onClick={handleInstallApp} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2 shadow-lg shadow-indigo-200 dark:shadow-none"><Plus size={18} /> <span className="hidden sm:inline">Nueva</span></button>
                                 </div>
                             </div>
 
-                            {/* Lista */}
+                            {/* Grid de Tarjetas */}
                             {loading ? (
                                 <div className="py-20 text-center text-gray-400">Cargando datos...</div>
-                            ) : filteredLocations.length === 0 ? (
-                                <div className="py-20 text-center bg-white dark:bg-gray-900 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
-                                    <p className="text-gray-500">No se encontraron subcuentas.</p>
-                                </div>
                             ) : (
-                                <div className="grid grid-cols-1 gap-4">
-                                    {filteredLocations.map(loc => (
-                                        <div key={loc.location_id} onClick={() => setSelectedLocation(loc)} className="group bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 dark:hover:border-indigo-500 cursor-pointer transition-all shadow-sm hover:shadow-md flex items-center justify-between">
-                                            <div className="flex items-center gap-5">
-                                                <div className="w-12 h-12 bg-gray-50 dark:bg-gray-800 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-colors">
-                                                    <Building2 size={24} />
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-lg font-bold text-gray-900 dark:text-white">{loc.name || "Sin Nombre"}</h4>
-                                                    <p className="text-xs font-mono text-gray-400">{loc.location_id}</p>
-                                                </div>
-                                            </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-                                            <div className="flex items-center gap-6">
-                                                <div className="text-right hidden sm:block">
-                                                    <p className="text-xs text-gray-400 uppercase font-bold">Dispositivos</p>
-                                                    <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center justify-end gap-1">
-                                                        <Smartphone size={14} className="text-indigo-500" /> {loc.total_slots || 0}
+                                    {/* 1. Subcuentas Activas */}
+                                    {filteredLocations.map(loc => (
+                                        <div
+                                            key={loc.location_id}
+                                            onClick={() => setSelectedLocation(loc)}
+                                            className="group bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-xl hover:border-indigo-500 dark:hover:border-indigo-500 transition-all duration-300 cursor-pointer relative overflow-hidden"
+                                        >
+                                            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 dark:bg-indigo-900/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+
+                                            <div className="relative z-10">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div className="w-12 h-12 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-indigo-600 group-hover:border-indigo-100 transition-colors shadow-sm">
+                                                        <Building2 size={24} />
+                                                    </div>
+                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${loc.status === 'active'
+                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900'
+                                                            : 'bg-gray-50 text-gray-500 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
+                                                        }`}>
+                                                        {loc.status}
+                                                    </span>
+                                                </div>
+
+                                                <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-1 truncate pr-2" title={loc.name}>{loc.name || "Sin Nombre"}</h4>
+                                                <p className="text-xs font-mono text-gray-400 mb-6 bg-gray-50 dark:bg-gray-800/50 inline-block px-1.5 py-0.5 rounded">{loc.location_id}</p>
+
+                                                <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800">
+                                                    <p className="text-sm font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2">
+                                                        <Smartphone size={16} className="text-indigo-500" />
+                                                        {loc.total_slots || 0} <span className="text-gray-400 font-normal text-xs">Conexiones</span>
                                                     </p>
+                                                    <div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-300 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                                        <ChevronRight size={16} />
+                                                    </div>
                                                 </div>
-                                                <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${loc.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-gray-100 text-gray-500'}`}>
-                                                    {loc.status}
-                                                </div>
-                                                <ChevronRight size={20} className="text-gray-300 group-hover:text-indigo-500" />
                                             </div>
                                         </div>
                                     ))}
+
+                                    {/* 2. Espacios Vacíos (Slots de Subagencia Disponibles) */}
+                                    {!searchTerm && accountInfo && Array.from({ length: Math.max(0, accountInfo.limits.max_subagencies - locations.length) }).map((_, idx) => (
+                                        <div
+                                            key={`empty-${idx}`}
+                                            onClick={handleInstallApp}
+                                            className="group relative bg-gray-50/50 dark:bg-gray-900/20 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-all duration-300 min-h-[220px]"
+                                        >
+                                            <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mb-4 shadow-sm border border-gray-100 dark:border-gray-700 group-hover:scale-110 group-hover:border-indigo-200 transition-all">
+                                                <Plus size={32} className="text-gray-300 group-hover:text-indigo-600 dark:text-gray-600 dark:group-hover:text-indigo-400" />
+                                            </div>
+                                            <h4 className="font-bold text-gray-900 dark:text-white mb-1">Espacio Disponible</h4>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 px-6 leading-relaxed">
+                                                Tienes licencia para conectar una nueva subagencia. Haz clic para instalar.
+                                            </p>
+                                        </div>
+                                    ))}
+
+                                    {/* Botón de "Comprar Más" si no hay huecos vacíos */}
+                                    {!searchTerm && accountInfo && (accountInfo.limits.max_subagencies - locations.length) === 0 && (
+                                        <div
+                                            onClick={() => setShowSubModal(true)}
+                                            className="group relative bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-1 transition-all duration-300 min-h-[220px]"
+                                        >
+                                            <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mb-4 backdrop-blur-sm group-hover:bg-white/20 transition-all">
+                                                <TrendingUp size={32} className="text-white" />
+                                            </div>
+                                            <h4 className="font-bold text-white mb-1 text-lg">¿Necesitas más?</h4>
+                                            <p className="text-xs text-indigo-100 px-4 leading-relaxed mb-4">
+                                                Has usado todas tus licencias. Amplía tu plan para seguir creciendo.
+                                            </p>
+                                            <span className="px-4 py-2 bg-white text-indigo-600 rounded-lg text-xs font-bold uppercase tracking-wider shadow-sm">
+                                                Mejorar Plan
+                                            </span>
+                                        </div>
+                                    )}
+
                                 </div>
                             )}
                         </div>
