@@ -7,7 +7,7 @@ import {
     LayoutDashboard, Users, CreditCard, LifeBuoy, LogOut,
     Plus, Search, Building2, Smartphone, RefreshCw,
     ExternalLink, Menu, X, ChevronRight, CheckCircle2,
-    AlertTriangle, TrendingUp, ShieldCheck
+    AlertTriangle, TrendingUp, ShieldCheck, Settings
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
