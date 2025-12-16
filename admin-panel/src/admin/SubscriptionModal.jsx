@@ -6,7 +6,7 @@ const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").re
 // ¡IMPORTANTE! Reemplaza estos IDs con los que creaste en tu Dashboard de Stripe
 const PLANS = [
     {
-        id: 'price_1Q...', // ID DE STRIPE PARA PLAN REGULAR (1 Sub / 5 Slots)
+        id: 'prod_TcDWfmQTQK9VSr', // ID DE STRIPE PARA PLAN REGULAR (1 Sub / 5 Slots)
         name: 'Regular',
         price: '$20',
         period: '/mes',
@@ -15,7 +15,7 @@ const PLANS = [
         recommended: false
     },
     {
-        id: 'price_TIER1...', // ID DE STRIPE PARA TIER 1 (5 Sub / 25 Slots)
+        id: 'prod_TcDWfmQTQK9VSr', // ID DE STRIPE PARA TIER 1 (5 Sub / 25 Slots)
         name: 'Agencia Pro',
         price: '$100', // Ejemplo
         period: '/mes',
@@ -24,7 +24,7 @@ const PLANS = [
         recommended: true
     },
     {
-        id: 'price_TIER2...', // ID DE STRIPE PARA TIER 2
+        id: 'prod_TcDWfmQTQK9VSr', // ID DE STRIPE PARA TIER 2
         name: 'Enterprise',
         price: '$250', // Ejemplo
         period: '/mes',
