@@ -9,7 +9,7 @@ import {
     Plus, Search, Building2, Smartphone, RefreshCw,
     ExternalLink, Menu, ChevronRight, CheckCircle2,
     AlertTriangle, TrendingUp, ShieldCheck, Settings, Trash2,
-    User, Users, Moon, Sun, Mail, Hash // 👈 AÑADIDO: Users
+    User, Users, Moon, Sun, Mail, Hash
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
@@ -58,7 +58,6 @@ export default function AgencyDashboard({ token, onLogout }) {
         const newInstallId = queryParams.get("new_install");
         if (newInstallId && !isAutoSyncing) autoSyncAgency(newInstallId);
 
-        // Decodificar email del token (simple) para mostrar en settings
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             setUserEmail(payload.email);
@@ -257,7 +256,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             </aside>
 
             {/* 2. AREA DE CONTENIDO */}
-            <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+            <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#F8FAFC] dark:bg-[#0f1117]">
 
                 {/* TOP HEADER */}
                 <header className="h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-800 flex items-center justify-between px-6 z-20">
@@ -328,15 +327,16 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <div className="flex w-full md:w-auto gap-3">
                                         <div className="relative flex-1 md:w-64">
                                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                            {/* 🔥 CORREGIDO: Input con soporte Dark Mode */}
                                             <input
                                                 type="text"
                                                 placeholder="Buscar..."
-                                                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all"
+                                                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all"
                                                 value={searchTerm}
                                                 onChange={e => setSearchTerm(e.target.value)}
                                             />
                                         </div>
-                                        <button onClick={fetchLocations} className="p-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 hover:text-indigo-600 transition"><RefreshCw size={18} className={loading ? "animate-spin" : ""} /></button>
+                                        <button onClick={fetchLocations} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition"><RefreshCw size={18} className={loading ? "animate-spin" : ""} /></button>
                                         <button onClick={handleInstallApp} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2 text-sm shadow-lg shadow-indigo-200 dark:shadow-none whitespace-nowrap"><Plus size={18} /> Nueva</button>
                                     </div>
                                 </div>
@@ -421,14 +421,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <div className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-500 mb-1.5">ID de Agencia</label>
+                                            <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5">ID de Agencia</label>
                                             <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
                                                 <Hash size={16} className="text-gray-400" />
                                                 <span className="font-mono text-gray-900 dark:text-white font-medium">{AGENCY_ID}</span>
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-500 mb-1.5">Email Registrado</label>
+                                            <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5">Email Registrado</label>
                                             <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
                                                 <Mail size={16} className="text-gray-400" />
                                                 <span className="text-gray-900 dark:text-white font-medium">{userEmail || 'Cargando...'}</span>
@@ -455,7 +455,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     </div>
                                     <button
                                         onClick={toggleTheme}
-                                        className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                                        className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition text-gray-600 dark:text-gray-300"
                                     >
                                         {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
                                     </button>
@@ -471,7 +471,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                             <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Gestión de Suscripción</h3>
                             <p className="text-gray-500 mb-8 max-w-md mx-auto">Administra tu plan, métodos de pago y descarga tus facturas directamente desde nuestro portal seguro.</p>
                             <div className="flex justify-center gap-4">
-                                <button onClick={handlePortal} className="px-6 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition">Portal de Facturación</button>
+                                <button onClick={handlePortal} className="px-6 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white transition">Portal de Facturación</button>
                                 <button onClick={() => setShowSubModal(true)} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition">Cambiar Plan</button>
                             </div>
                         </div>
