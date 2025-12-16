@@ -9,7 +9,7 @@ import {
     Plus, Search, Building2, Smartphone, RefreshCw,
     ExternalLink, Menu, ChevronRight, CheckCircle2,
     AlertTriangle, TrendingUp, ShieldCheck, Settings, Trash2,
-    User, Moon, Sun, Mail, Hash
+    User, Users, Moon, Sun, Mail, Hash // 👈 AÑADIDO: Users
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
