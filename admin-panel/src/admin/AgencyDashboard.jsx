@@ -268,8 +268,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 <div>
                                     <div className="flex items-center gap-2 mb-3">
                                         <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${accountInfo.plan === 'active'
-                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-900'
-                                                : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-900'
+                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-900'
+                                            : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-900'
                                             }`}>
                                             {accountInfo.plan === 'active' ? '● Activo' : '● Prueba'}
                                         </div>
@@ -438,6 +438,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         token={token}
                         onLogout={onLogout}
                         onClose={() => setSelectedLocation(null)}
+                        onUpgrade={() => setShowSubModal(true)}
                     />
                 )}
 

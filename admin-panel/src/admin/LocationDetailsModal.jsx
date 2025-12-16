@@ -106,7 +106,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     icon: <AlertTriangle className="text-amber-500" />,
                     action: {
                         label: 'Mejorar Plan',
-                        onClick: () => window.open("https://wa.me/595984756159", "_blank")
+                        onClick: () => {
+                            onClose(); // Opcional: Cerramos el modal de detalles para que se vea el de pagos
+                            onUpgrade(); // ¡Abrimos el modal de suscripción!
+                        }
                     }
                 });
             } else {
