@@ -7,7 +7,8 @@ import {
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 
-export default function LocationDetailsModal({ location, onClose, token, onLogout }) {
+// 👇 AQUÍ ESTABA EL ERROR: Faltaba agregar 'onUpgrade' en las props
+export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade }) {
     const [slots, setSlots] = useState([]);
     const [keywords, setKeywords] = useState([]);
     const [ghlUsers, setGhlUsers] = useState([]);
@@ -105,10 +106,10 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     duration: 6000,
                     icon: <AlertTriangle className="text-amber-500" />,
                     action: {
-                        label: 'Mejorar Plan',
+                        label: 'Ampliar Plan',
                         onClick: () => {
-                            onClose(); // Opcional: Cerramos el modal de detalles para que se vea el de pagos
-                            onUpgrade(); // ¡Abrimos el modal de suscripción!
+                            onClose(); // Cerramos este modal
+                            if (onUpgrade) onUpgrade(); // Abrimos el de suscripción
                         }
                     }
                 });

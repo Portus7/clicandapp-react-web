@@ -136,8 +136,8 @@ export default function AgencyDashboard({ token, onLogout }) {
                     duration: 6000,
                     icon: <AlertTriangle className="text-amber-500" />,
                     action: {
-                        label: 'Contactar Soporte',
-                        onClick: () => window.open(`https://wa.me/${SUPPORT_PHONE}`, "_blank")
+                        label: 'Ampliar Plan',
+                        onClick: () => setShowSubModal(true)
                     }
                 });
                 return; // ⛔ DETENER LA REDIRECCIÓN
@@ -438,7 +438,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                         token={token}
                         onLogout={onLogout}
                         onClose={() => setSelectedLocation(null)}
-                        onUpgrade={() => setShowSubModal(true)}
+                        onUpgrade={() => setShowSubModal(true)} // 👈 AQUÍ PASAMOS LA PROP CRÍTICA
                     />
                 )}
 
