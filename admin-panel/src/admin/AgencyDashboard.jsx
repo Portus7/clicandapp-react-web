@@ -446,6 +446,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     <SubscriptionModal
                         onClose={() => setShowSubModal(false)}
                         token={token}
+                        accountInfo={accountInfo}
                     />
                 )}
             </main>
