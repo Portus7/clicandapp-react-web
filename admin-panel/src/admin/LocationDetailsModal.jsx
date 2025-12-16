@@ -39,6 +39,24 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
     useEffect(() => {
         loadData();
+        const interval = setInterval(() => {
+
+            (async () => {
+                try {
+                    const res = await fetch(`${API_URL}/agency/location-details/${location.location_id}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        setSlots(prev => {
+                            return data.slots || [];
+                        });
+                    }
+                } catch (e) { }
+            })();
+        }, 5000);
+
+        return () => clearInterval(interval);
     }, [location]);
 
     const loadData = async () => {
