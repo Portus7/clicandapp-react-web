@@ -15,7 +15,7 @@ const PLANS = [
         recommended: false
     },
     {
-        id: 'prod_TcDWfmQTQK9VSr', // ID DE STRIPE PARA TIER 1 (5 Sub / 25 Slots)
+        id: 'price_1Sez557Mhd9qo6A8oUCnFP1c', // ID DE STRIPE PARA TIER 1 (5 Sub / 25 Slots)
         name: 'Agencia Pro',
         price: '$100', // Ejemplo
         period: '/mes',
