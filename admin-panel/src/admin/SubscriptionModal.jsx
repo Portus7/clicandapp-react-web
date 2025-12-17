@@ -1,70 +1,71 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-    X, Check, Zap, Building2, Smartphone, ArrowRight,
-    CreditCard, FileText, Layers, PlusCircle, Trash2, ExternalLink, Crown, Box
+    X, Check, Zap, Building2, Smartphone,
+    CreditCard, FileText, Layers, PlusCircle, ExternalLink, Crown
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 
-// --- CONFIGURACIÓN DE PLANES BASE ---
+// --- 1. CONFIGURACIÓN DE PLANES BASE (CON IDS REALES) ---
 const BASE_PLANS = [
     {
-        id: 'price_REGULAR_ID',
+        id: 'price_1SfJpk7Mhd9qo6A8AmFiKTdk', // Regular
         name: 'Regular',
         price: '20€',
         limits: { subs: 1, slots: 5 },
-        features: ['1 Subagencia', '5 Slots'],
+        features: ['1 Agencia', '5 Números incluidos'],
         color: 'bg-blue-500'
     },
     {
-        id: 'price_PRO_ID',
+        id: 'price_1SfJqb7Mhd9qo6A8zP0xydlX', // Pro
         name: 'Agencia Pro',
-        price: '100€',
+        price: '90€', // Precio actualizado
         limits: { subs: 5, slots: 25 },
-        features: ['5 Subagencias', '25 Slots', 'Marca Blanca'],
+        features: ['5 Agencias', '25 Números incluidos', 'Marca Blanca'],
         color: 'bg-indigo-600',
         recommended: true
     },
     {
-        id: 'price_ENTERPRISE_ID',
+        id: 'price_1SfJrZ7Mhd9qo6A8WOn6BGbJ', // Enterprise
         name: 'Enterprise',
-        price: '250€',
+        price: '200€', // Precio actualizado
         limits: { subs: 10, slots: 50 },
-        features: ['10+ Subagencias', '50+ Slots', 'API', 'Descuento en Extras'],
+        features: ['10 Agencias', '50 Números incluidos', 'API', 'Descuento VIP en Extras'],
         color: 'bg-purple-600'
     }
 ];
 
-// --- CONFIGURACIÓN DE ADD-ONS (IDs STRIPE) ---
+// --- 2. CONFIGURACIÓN DE ADD-ONS (MAPEO DE IDs REALES) ---
 const ADDONS = {
-    SUB_UNIT_STD: 'price_SUB_STD_ID', // 30€
-    SUB_UNIT_VIP: 'price_SUB_VIP_ID', // 15€
-    SLOT_UNIT_STD: 'price_SLOT_STD_ID', // 10€
-    SLOT_UNIT_VIP: 'price_SLOT_VIP_ID'  // 5€
+    // Subagencia (+5 Slots)
+    SUB_UNIT_STD: 'price_1SfK2d7Mhd9qo6A8AI3ZkOQT', // 20€ (Normal)
+    SUB_UNIT_VIP: 'price_1SfK547Mhd9qo6A8SfvT8GF4', // 10€ (VIP)
+
+    // Slot Individual
+    SLOT_UNIT_STD: 'price_1SfK787Mhd9qo6A8WmPRs9Zy', // 5€ (Normal)
+    SLOT_UNIT_VIP: 'price_1SfK827Mhd9qo6A89iZ68SRi'  // 3€ (VIP)
 };
 
 export default function SubscriptionModal({ onClose, token, accountInfo }) {
     const [activeTab, setActiveTab] = useState('new_subscription');
     const [loading, setLoading] = useState(false);
 
-    // ESTADO: Datos reales de suscripciones desde el Backend
+    // Estado para suscripciones reales traídas de Stripe/DB
     const [realSubscriptions, setRealSubscriptions] = useState([]);
 
-    // 1. Estado Actual del Cliente (Para cálculos de Upgrade en Tab 1)
+    // 1. Estado Actual del Cliente (Límites Totales para calcular descuentos)
     const totalSubs = accountInfo?.limits?.max_subagencies || 0;
 
-    // Determinamos el Plan Base "Teórico" para mostrar opciones de Upgrade correctas
-    let basePlan = BASE_PLANS[0]; // Default Regular
-    if (totalSubs >= 10) basePlan = BASE_PLANS[2]; // Enterprise
-    else if (totalSubs >= 5) basePlan = BASE_PLANS[1]; // Pro
+    // --- LÓGICA DE DESCUENTO DINÁMICO ---
+    // Si tiene 10 o más agencias (ya sea por plan Enterprise o acumuladas), es VIP.
+    const hasVolumeDiscount = totalSubs >= 10;
 
-    const isEnterprise = basePlan.name === 'Enterprise';
+    // Seleccionamos ID y Precio a mostrar según el descuento
+    const subPriceId = hasVolumeDiscount ? ADDONS.SUB_UNIT_VIP : ADDONS.SUB_UNIT_STD;
+    const subDisplayPrice = hasVolumeDiscount ? "10€ (VIP)" : "20€";
 
-    // Precios y IDs para compra (Marketplace)
-    const subPriceId = isEnterprise ? ADDONS.SUB_UNIT_VIP : ADDONS.SUB_UNIT_STD;
-    const subDisplayPrice = isEnterprise ? "15€ (VIP)" : "30€";
-    const slotPriceId = isEnterprise ? ADDONS.SLOT_UNIT_VIP : ADDONS.SLOT_UNIT_STD;
-    const slotDisplayPrice = isEnterprise ? "5€ (VIP)" : "10€";
+    const slotPriceId = hasVolumeDiscount ? ADDONS.SLOT_UNIT_VIP : ADDONS.SLOT_UNIT_STD;
+    const slotDisplayPrice = hasVolumeDiscount ? "3€ (VIP)" : "5€";
 
     // --- EFECTO: Cargar suscripciones reales al cambiar de tab ---
     useEffect(() => {
@@ -127,7 +128,9 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                             </div>
                             <div>
                                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Gestión de Suscripción</h2>
-                                <p className="text-xs text-gray-500">Administra tus recursos y facturación.</p>
+                                <p className="text-xs text-gray-500">
+                                    Nivel Actual: <span className={`font-bold ${hasVolumeDiscount ? 'text-purple-600' : 'text-gray-600'}`}>{hasVolumeDiscount ? "VIP (Precios con Descuento)" : "Estándar"}</span>
+                                </p>
                             </div>
                         </div>
                         <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition text-gray-500">
@@ -154,12 +157,13 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                             <div>
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                                     <Zap size={18} className="text-yellow-500 fill-current" /> Ampliación Flexible
+                                    {hasVolumeDiscount && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200">Descuento Activado</span>}
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Tarjeta Subagencia */}
                                     <AddonCard
                                         title="Subcuenta Adicional"
-                                        desc="Incluye +5 Slots WhatsApp gratis."
+                                        desc="Incluye licencia de agencia + 5 Slots WhatsApp gratis."
                                         price={subDisplayPrice}
                                         icon={Building2}
                                         color="indigo"
@@ -169,7 +173,7 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                                     {/* Tarjeta Slot */}
                                     <AddonCard
                                         title="WhatsApp Adicional"
-                                        desc="Añade más números a cualquier subcuenta."
+                                        desc="Añade más números a cualquier subcuenta existente."
                                         price={slotDisplayPrice}
                                         icon={Smartphone}
                                         color="emerald"
@@ -186,7 +190,11 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     {BASE_PLANS.map((plan) => {
-                                        const isCurrent = plan.name === basePlan.name; // Simplificado para visualización
+                                        // Simple lógica visual para marcar el plan actual aproximado
+                                        let isCurrent = false;
+                                        if (plan.name === 'Regular' && totalSubs >= 1 && totalSubs < 5) isCurrent = true;
+                                        if (plan.name === 'Agencia Pro' && totalSubs >= 5 && totalSubs < 10) isCurrent = true;
+                                        if (plan.name === 'Enterprise' && totalSubs >= 10) isCurrent = true;
 
                                         return (
                                             <div key={plan.id} className={`relative flex flex-col p-6 rounded-2xl transition-all duration-300 border ${isCurrent ? 'border-emerald-500 bg-emerald-50/10' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'}`}>
