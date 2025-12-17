@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
     X, Check, Zap, Building2, Smartphone, ArrowRight,
-    CreditCard, FileText, Layers, PlusCircle, Trash2, ExternalLink, Crown
+    CreditCard, FileText, Layers, PlusCircle, Trash2, ExternalLink, Crown, Box
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
@@ -44,15 +44,70 @@ const ADDONS = {
 };
 
 export default function SubscriptionModal({ onClose, token, accountInfo }) {
-    const [activeTab, setActiveTab] = useState('new_subscription'); // Default a comprar
+    const [activeTab, setActiveTab] = useState('new_subscription');
     const [loading, setLoading] = useState(false);
 
-    // 1. Estado Actual del Cliente
-    const currentSubsLimit = accountInfo?.limits?.max_subagencies || 0;
-    const currentSlotsLimit = accountInfo?.limits?.max_slots || 0;
-    const isEnterprise = currentSubsLimit >= 10;
+    // 1. Estado Actual del Cliente (Límites Totales)
+    const totalSubs = accountInfo?.limits?.max_subagencies || 0;
+    const totalSlots = accountInfo?.limits?.max_slots || 0;
 
-    // 2. Calcular Precios Dinámicos
+    // 2. Lógica para "Deducir" el Plan Base y los Extras
+    // Determinamos el Plan Base según el escalón más alto alcanzado
+    let basePlan = BASE_PLANS[0]; // Default Regular
+    if (totalSubs >= 10) basePlan = BASE_PLANS[2]; // Enterprise
+    else if (totalSubs >= 5) basePlan = BASE_PLANS[1]; // Pro
+
+    const isEnterprise = basePlan.name === 'Enterprise';
+
+    // Calculamos los Extras (Lo que excede del plan base)
+    const extraSubsCount = Math.max(0, totalSubs - basePlan.limits.subs);
+
+    // Cada Subagencia extra (o base) "regala" 5 slots en tu lógica de negocio actual?
+    // Asumiremos que los slots extras son los que exceden la suma de (Base + (ExtraSubs * 5))
+    // O si tu lógica es distinta, ajustamos. Aquí asumo: Plan Base tiene X slots fijos.
+    // Si compraste el Addon de "Subagencia + 5 Slots", entonces esos slots vienen con la sub.
+    // Slots "Sueltos" puros serían: Total - (Base + (ExtraSubs * 5))
+    const slotsIncludedInSubs = basePlan.limits.slots + (extraSubsCount * 5);
+    const extraSlotsCount = Math.max(0, totalSlots - slotsIncludedInSubs);
+
+    // Lista construida para mostrar en "Mis Suscripciones"
+    const activeServices = [
+        {
+            id: 'base',
+            name: `Plan ${basePlan.name}`,
+            desc: "Suscripción Principal",
+            qty: 1,
+            price: basePlan.price,
+            icon: Crown,
+            color: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20'
+        }
+    ];
+
+    if (extraSubsCount > 0) {
+        activeServices.push({
+            id: 'addon_sub',
+            name: "Paquete Subagencia",
+            desc: "Incluye licencia + 5 Slots",
+            qty: extraSubsCount,
+            price: isEnterprise ? "15€/u" : "30€/u",
+            icon: Building2,
+            color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20'
+        });
+    }
+
+    if (extraSlotsCount > 0) {
+        activeServices.push({
+            id: 'addon_slot',
+            name: "Slot WhatsApp Suelto",
+            desc: "Conexiones adicionales",
+            qty: extraSlotsCount,
+            price: isEnterprise ? "5€/u" : "10€/u",
+            icon: Smartphone,
+            color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20'
+        });
+    }
+
+    // Precios y IDs para compra (Marketplace)
     const subPriceId = isEnterprise ? ADDONS.SUB_UNIT_VIP : ADDONS.SUB_UNIT_STD;
     const subDisplayPrice = isEnterprise ? "15€ (VIP)" : "30€";
     const slotPriceId = isEnterprise ? ADDONS.SLOT_UNIT_VIP : ADDONS.SLOT_UNIT_STD;
@@ -159,8 +214,8 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     {BASE_PLANS.map((plan) => {
-                                        const isCurrent = plan.limits.subs === currentSubsLimit && plan.limits.slots === currentSlotsLimit;
-                                        const isDowngrade = plan.limits.subs < currentSubsLimit;
+                                        const isCurrent = plan.limits.subs === totalSubs && plan.limits.slots === totalSlots;
+                                        const isDowngrade = plan.limits.subs < totalSubs;
 
                                         return (
                                             <div key={plan.id} className={`relative flex flex-col p-6 rounded-2xl transition-all duration-300 border ${isCurrent ? 'border-emerald-500 bg-emerald-50/10' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'}`}>
@@ -180,7 +235,7 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                                                     ))}
                                                 </ul>
 
-                                                {/* Botón Principal (Solo si NO es downgrade ni actual) */}
+                                                {/* Botón Principal (Upgrade) */}
                                                 {!isCurrent && !isDowngrade && (
                                                     <button
                                                         onClick={() => handlePurchase(plan.id)}
@@ -190,7 +245,7 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                                                     </button>
                                                 )}
 
-                                                {/* Mensaje o Botón Discreto para Downgrade */}
+                                                {/* Botón Discreto (Downgrade) */}
                                                 {isDowngrade && (
                                                     <button
                                                         onClick={() => handlePurchase(plan.id)}
@@ -214,30 +269,49 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                         </div>
                     )}
 
-                    {/* --- TAB 2: MIS SUSCRIPCIONES (Resumen Visual) --- */}
+                    {/* --- TAB 2: MIS SUSCRIPCIONES (Lista Detallada) --- */}
                     {activeTab === 'my_subscriptions' && (
-                        <div className="space-y-6 max-w-4xl mx-auto">
-                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Resumen de Recursos</h3>
-                                <div className="grid grid-cols-2 gap-8">
-                                    <div>
-                                        <p className="text-sm text-gray-500 mb-1">Subagencias Activas</p>
-                                        <p className="text-3xl font-extrabold text-indigo-600">{accountInfo?.limits?.used_subagencies} / {currentSubsLimit}</p>
-                                        <div className="w-full bg-gray-100 h-2 rounded-full mt-2 overflow-hidden"><div style={{ width: `${Math.min(100, (accountInfo?.limits?.used_subagencies / currentSubsLimit) * 100)}%` }} className="bg-indigo-500 h-full"></div></div>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-500 mb-1">Slots WhatsApp</p>
-                                        <p className="text-3xl font-extrabold text-emerald-600">{accountInfo?.limits?.used_slots} / {currentSlotsLimit}</p>
-                                        <div className="w-full bg-gray-100 h-2 rounded-full mt-2 overflow-hidden"><div style={{ width: `${Math.min(100, (accountInfo?.limits?.used_slots / currentSlotsLimit) * 100)}%` }} className="bg-emerald-500 h-full"></div></div>
-                                    </div>
+                        <div className="space-y-4 max-w-5xl mx-auto">
+                            <div className="mb-6 flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Servicios Contratados</h3>
+                                    <p className="text-sm text-gray-500">Detalle de tus planes y paquetes activos.</p>
                                 </div>
-                            </div>
-
-                            <div className="flex justify-end">
-                                <button onClick={handlePortal} className="text-red-500 hover:text-red-700 text-sm font-medium flex items-center gap-2">
-                                    <Trash2 size={16} /> Cancelar Suscripción
+                                <button onClick={handlePortal} className="text-sm font-medium text-red-500 hover:text-red-600 flex items-center gap-1">
+                                    <ExternalLink size={14} /> Gestionar Cancelaciones
                                 </button>
                             </div>
+
+                            {activeServices.map((service) => (
+                                <div key={service.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 flex flex-col md:flex-row items-center justify-between shadow-sm">
+                                    <div className="flex items-center gap-4 w-full md:w-auto">
+                                        <div className={`p-3 rounded-xl ${service.color}`}>
+                                            <service.icon size={24} />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-gray-900 dark:text-white text-lg">{service.name}</h4>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">{service.desc}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-8 mt-4 md:mt-0 w-full md:w-auto justify-between md:justify-end">
+                                        <div className="text-center">
+                                            <p className="text-xs text-gray-400 uppercase font-bold mb-1">Cantidad</p>
+                                            <span className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white px-3 py-1 rounded-lg font-mono font-bold text-sm">
+                                                x{service.qty}
+                                            </span>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-xs text-gray-400 uppercase font-bold mb-1">Precio Unitario</p>
+                                            <p className="font-bold text-gray-900 dark:text-white text-sm">{service.price}</p>
+                                        </div>
+                                        <div className="text-center hidden sm:block">
+                                            <p className="text-xs text-gray-400 uppercase font-bold mb-1">Estado</p>
+                                            <span className="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">Activo</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
 
@@ -250,7 +324,7 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
                                 {activeTab === 'invoices' ? 'Historial de Facturación' : 'Métodos de Pago'}
                             </h3>
-                            <p className="text-gray-500 dark:text-gray-400 mb-8">
+                            <p className="text-gray-500 dark:text-gray-400 mb-8 max-w-md mx-auto">
                                 Por seguridad, esta información se gestiona en nuestro portal encriptado.
                             </p>
                             <button
