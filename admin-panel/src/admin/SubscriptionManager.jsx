@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
     Check, Zap, Building2, Smartphone,
     CreditCard, FileText, ExternalLink, Crown, AlertCircle,
-    ArrowUpCircle, Plus, ChevronRight, Package, Shield, PlusCircle
+    ArrowUpCircle, Plus, ChevronRight, Package, Shield, PlusCircle,
+    TrendingUp, XCircle, Settings
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
@@ -47,8 +48,7 @@ const ADDONS = {
     SLOT_UNIT_VIP: 'price_1SfK827Mhd9qo6A89iZ68SRi'
 };
 
-// --- 🔥 NUEVO: MAPEO DE DETALLES DE RECURSOS ---
-// Esto permite mostrar qué incluye cada ID de Stripe en la lista
+// --- MAPEO DE DETALLES DE RECURSOS ---
 const PLAN_DETAILS = {
     // Planes Base
     'price_1SfJpk7Mhd9qo6A8AmFiKTdk': { label: '1 Agencia / 5 Slots' },
@@ -209,19 +209,17 @@ export default function SubscriptionManager({ token, accountInfo }) {
                             /* LISTA CON DATOS */
                             <div className="divide-y divide-gray-100 dark:divide-gray-800">
                                 {subscriptions.map(sub => {
-                                    // Buscamos la info de límites
                                     const details = PLAN_DETAILS[sub.stripe_price_id];
-
                                     return (
-                                        <div key={sub.id} className="p-6 flex flex-col md:flex-row items-center justify-between gap-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
-                                            <div className="flex items-center gap-4 w-full md:w-auto">
+                                        <div key={sub.id} className="p-6 flex flex-col lg:flex-row items-center justify-between gap-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
+                                            {/* Info Principal */}
+                                            <div className="flex items-center gap-4 w-full lg:w-auto">
                                                 <div className={`p-3 rounded-xl ${sub.type === 'base' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
                                                     {sub.type === 'base' ? <Crown size={24} /> : <Zap size={24} />}
                                                 </div>
                                                 <div>
-                                                    <div className="flex items-center gap-3">
+                                                    <div className="flex flex-wrap items-center gap-2">
                                                         <h4 className="font-bold text-gray-900 dark:text-white text-lg">{sub.product_name}</h4>
-                                                        {/* 🔥 MUESTRA DE LÍMITES */}
                                                         {details && (
                                                             <span className="text-[10px] uppercase font-extrabold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 border border-gray-200 dark:border-gray-600 px-2 py-0.5 rounded tracking-wide">
                                                                 {details.label}
@@ -231,29 +229,32 @@ export default function SubscriptionManager({ token, accountInfo }) {
                                                     <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 mt-1">
                                                         <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1.5 rounded text-xs">ID: {sub.stripe_subscription_id?.slice(-8)}</span>
                                                         {sub.quantity > 1 && <span className="font-bold text-indigo-600 dark:text-indigo-400">x{sub.quantity} unidades</span>}
+
+                                                        <span className={`inline-flex items-center gap-1 ml-2 text-xs font-bold capitalize ${sub.status === 'active' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}`}>
+                                                            <span className={`w-1.5 h-1.5 rounded-full ${sub.status === 'active' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                                                            {sub.status}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
-                                                <div className="text-right">
-                                                    <p className="text-[10px] text-gray-400 uppercase font-bold">Estado</p>
-                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${sub.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700'}`}>
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${sub.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
-                                                        {sub.status}
-                                                    </span>
-                                                </div>
+                                            {/* 🔥 BOTONES DE ACCIÓN (MEJORAR / CANCELAR) */}
+                                            <div className="flex gap-3 w-full lg:w-auto justify-end">
+                                                <button
+                                                    onClick={handlePortal}
+                                                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/40 rounded-lg transition border border-indigo-200 dark:border-indigo-800"
+                                                    title="Cambiar a un plan superior o inferior"
+                                                >
+                                                    <TrendingUp size={14} /> Modificar Plan
+                                                </button>
 
-                                                {/* Acciones por Item */}
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={handlePortal}
-                                                        className="p-2 text-gray-400 hover:text-red-500 bg-gray-50 hover:bg-red-50 dark:bg-gray-800 dark:hover:bg-red-900/20 rounded-lg transition"
-                                                        title="Gestionar en Stripe"
-                                                    >
-                                                        <ExternalLink size={18} />
-                                                    </button>
-                                                </div>
+                                                <button
+                                                    onClick={handlePortal}
+                                                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 rounded-lg transition border border-red-200 dark:border-red-900"
+                                                    title="Dar de baja este servicio"
+                                                >
+                                                    <XCircle size={14} /> Cancelar
+                                                </button>
                                             </div>
                                         </div>
                                     );
