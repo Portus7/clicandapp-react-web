@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Check, Zap, Building2, Smartphone,
     CreditCard, FileText, ExternalLink, Crown, AlertCircle,
-    ArrowUpCircle, Plus, ChevronRight, Package, Shield
+    ArrowUpCircle, Plus, ChevronRight, Package, Shield, PlusCircle
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
@@ -128,8 +128,8 @@ export default function SubscriptionManager({ token, accountInfo }) {
                             key={tab}
                             onClick={() => setActiveTab(tab)}
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab
-                                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
                                 }`}
                         >
                             {tab === 'services' ? 'Mis Servicios' : tab === 'payments' ? 'Métodos de Pago' : 'Facturas'}
