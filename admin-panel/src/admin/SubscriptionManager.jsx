@@ -47,6 +47,23 @@ const ADDONS = {
     SLOT_UNIT_VIP: 'price_1SfK827Mhd9qo6A89iZ68SRi'
 };
 
+// --- 🔥 NUEVO: MAPEO DE DETALLES DE RECURSOS ---
+// Esto permite mostrar qué incluye cada ID de Stripe en la lista
+const PLAN_DETAILS = {
+    // Planes Base
+    'price_1SfJpk7Mhd9qo6A8AmFiKTdk': { label: '1 Agencia / 5 Slots' },
+    'price_1SfJqb7Mhd9qo6A8zP0xydlX': { label: '5 Agencias / 25 Slots' },
+    'price_1SfJrZ7Mhd9qo6A8WOn6BGbJ': { label: '10 Agencias / 50 Slots' },
+
+    // Add-ons (Subagencias)
+    'price_1SfK2d7Mhd9qo6A8AI3ZkOQT': { label: '+1 Agencia / +5 Slots' },
+    'price_1SfK547Mhd9qo6A8SfvT8GF4': { label: '+1 Agencia / +5 Slots' },
+
+    // Add-ons (Slots)
+    'price_1SfK787Mhd9qo6A8WmPRs9Zy': { label: '+1 Slot Extra' },
+    'price_1SfK827Mhd9qo6A89iZ68SRi': { label: '+1 Slot Extra' }
+};
+
 export default function SubscriptionManager({ token, accountInfo }) {
     const [activeTab, setActiveTab] = useState('services'); // services | payments | invoices
     const [loading, setLoading] = useState(false);
@@ -148,7 +165,7 @@ export default function SubscriptionManager({ token, accountInfo }) {
                                 <Package size={20} className="text-indigo-500" /> Servicios Contratados
                             </h3>
 
-                            {/* 🔥 BOTÓN PARA CONTRATAR NUEVO PLAN (ACUMULABLE) */}
+                            {/* BOTÓN PARA CONTRATAR NUEVO PLAN (ACUMULABLE) */}
                             {subscriptions.length > 0 && (
                                 <button
                                     onClick={() => setShowPlans(!showPlans)}
@@ -191,49 +208,61 @@ export default function SubscriptionManager({ token, accountInfo }) {
                         ) : (
                             /* LISTA CON DATOS */
                             <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                                {subscriptions.map(sub => (
-                                    <div key={sub.id} className="p-6 flex flex-col md:flex-row items-center justify-between gap-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
-                                        <div className="flex items-center gap-4 w-full md:w-auto">
-                                            <div className={`p-3 rounded-xl ${sub.type === 'base' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
-                                                {sub.type === 'base' ? <Crown size={24} /> : <Zap size={24} />}
+                                {subscriptions.map(sub => {
+                                    // Buscamos la info de límites
+                                    const details = PLAN_DETAILS[sub.stripe_price_id];
+
+                                    return (
+                                        <div key={sub.id} className="p-6 flex flex-col md:flex-row items-center justify-between gap-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
+                                            <div className="flex items-center gap-4 w-full md:w-auto">
+                                                <div className={`p-3 rounded-xl ${sub.type === 'base' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                                                    {sub.type === 'base' ? <Crown size={24} /> : <Zap size={24} />}
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-3">
+                                                        <h4 className="font-bold text-gray-900 dark:text-white text-lg">{sub.product_name}</h4>
+                                                        {/* 🔥 MUESTRA DE LÍMITES */}
+                                                        {details && (
+                                                            <span className="text-[10px] uppercase font-extrabold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 border border-gray-200 dark:border-gray-600 px-2 py-0.5 rounded tracking-wide">
+                                                                {details.label}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                        <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1.5 rounded text-xs">ID: {sub.stripe_subscription_id?.slice(-8)}</span>
+                                                        {sub.quantity > 1 && <span className="font-bold text-indigo-600 dark:text-indigo-400">x{sub.quantity} unidades</span>}
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <h4 className="font-bold text-gray-900 dark:text-white text-lg">{sub.product_name}</h4>
-                                                <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1.5 rounded text-xs">ID: {sub.stripe_subscription_id?.slice(-8)}</span>
-                                                    {sub.quantity > 1 && <span className="font-bold text-indigo-600 dark:text-indigo-400">x{sub.quantity} unidades</span>}
+
+                                            <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
+                                                <div className="text-right">
+                                                    <p className="text-[10px] text-gray-400 uppercase font-bold">Estado</p>
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${sub.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700'}`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${sub.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
+                                                        {sub.status}
+                                                    </span>
+                                                </div>
+
+                                                {/* Acciones por Item */}
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={handlePortal}
+                                                        className="p-2 text-gray-400 hover:text-red-500 bg-gray-50 hover:bg-red-50 dark:bg-gray-800 dark:hover:bg-red-900/20 rounded-lg transition"
+                                                        title="Gestionar en Stripe"
+                                                    >
+                                                        <ExternalLink size={18} />
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>
-
-                                        <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
-                                            <div className="text-right">
-                                                <p className="text-[10px] text-gray-400 uppercase font-bold">Estado</p>
-                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold capitalize ${sub.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700'}`}>
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${sub.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
-                                                    {sub.status}
-                                                </span>
-                                            </div>
-
-                                            {/* Acciones por Item */}
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={handlePortal}
-                                                    className="p-2 text-gray-400 hover:text-red-500 bg-gray-50 hover:bg-red-50 dark:bg-gray-800 dark:hover:bg-red-900/20 rounded-lg transition"
-                                                    title="Gestionar en Stripe"
-                                                >
-                                                    <ExternalLink size={18} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
 
                     {/* 2. GRID DE PLANES BASE (CATÁLOGO) */}
-                    {/* Se muestra si no hay suscripciones O si se activa manualmente con el botón */}
                     {(showPlans || subscriptions.length === 0) && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
                             <div className="flex items-center justify-between">
