@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import LocationDetailsModal from './LocationDetailsModal';
-import SubscriptionModal from './SubscriptionModal';
+import SubscriptionManager from './SubscriptionManager'; // ✅ NUEVO IMPORT
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
 import {
@@ -23,7 +23,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     const { theme, toggleTheme } = useTheme();
 
     // Estado de UI
-    const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'billing', 'settings'
+    const [activeTab, setActiveTab] = useState('overview');
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     // Datos
@@ -31,7 +31,9 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isAutoSyncing, setIsAutoSyncing] = useState(false);
-    const [showSubModal, setShowSubModal] = useState(false);
+
+    // ❌ Eliminado: const [showSubModal, setShowSubModal] = useState(false); 
+
     const [accountInfo, setAccountInfo] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [userEmail, setUserEmail] = useState("");
@@ -147,23 +149,12 @@ export default function AgencyDashboard({ token, onLogout }) {
                 toast.error("Cupo de Subagencias Agotado", {
                     description: "Amplía tu plan para conectar más cuentas.",
                     icon: <AlertTriangle className="text-amber-500" />,
-                    action: { label: 'Ampliar Plan', onClick: () => setShowSubModal(true) }
+                    action: { label: 'Ampliar Plan', onClick: () => setActiveTab('billing') }
                 });
                 return;
             }
         }
         window.location.href = INSTALL_APP_URL;
-    };
-
-    const handlePortal = async () => {
-        const tId = toast.loading("Abriendo facturación...");
-        try {
-            const res = await authFetch('/payments/portal', { method: 'POST' });
-            const data = await res.json();
-            toast.dismiss(tId);
-            if (data.url) window.location.href = data.url;
-            else toast.error("No se pudo abrir el portal.");
-        } catch (e) { toast.dismiss(tId); toast.error("Error de conexión."); }
     };
 
     // Filtros
@@ -280,7 +271,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 {/* SCROLLABLE MAIN */}
                 <main className="flex-1 overflow-y-auto p-6 md:p-8">
 
-                    {/* --- VISTA 1: OVERVIEW (DASHBOARD + SUBCUENTAS) --- */}
+                    {/* --- VISTA 1: OVERVIEW --- */}
                     {activeTab === 'overview' && accountInfo && (
                         <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
@@ -305,7 +296,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     icon={ShieldCheck}
                                     color={accountInfo.plan === 'active' ? "bg-blue-500" : "bg-amber-500"}
                                 />
-                                <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:shadow-indigo-500/25 transition-shadow" onClick={() => setShowSubModal(true)}>
+                                <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-5 rounded-2xl text-white shadow-lg flex flex-col justify-between cursor-pointer hover:shadow-indigo-500/25 transition-shadow" onClick={() => setActiveTab('billing')}>
                                     <div>
                                         <p className="text-indigo-200 text-xs font-bold uppercase tracking-wide mb-1">¿Necesitas más?</p>
                                         <h3 className="text-xl font-bold">Mejorar Plan</h3>
@@ -327,7 +318,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <div className="flex w-full md:w-auto gap-3">
                                         <div className="relative flex-1 md:w-64">
                                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                            {/* 🔥 CORREGIDO: Input con soporte Dark Mode */}
                                             <input
                                                 type="text"
                                                 placeholder="Buscar..."
@@ -345,7 +335,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <div className="py-20 text-center text-gray-400">Cargando datos...</div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
                                         {/* 1. Tarjetas de Subcuentas Reales */}
                                         {filteredLocations.map(loc => (
                                             <div
@@ -395,7 +384,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                         {/* 3. Tarjeta Upsell (Si no hay huecos) */}
                                         {!searchTerm && accountInfo && (accountInfo.limits.max_subagencies - locations.length) === 0 && (
                                             <div
-                                                onClick={() => setShowSubModal(true)}
+                                                onClick={() => setActiveTab('billing')}
                                                 className="group relative bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-1 transition-all duration-300 min-h-[220px]"
                                             >
                                                 <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mb-4 backdrop-blur-sm group-hover:bg-white/20 transition-all">
@@ -464,17 +453,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     )}
 
-                    {/* --- VISTA 3: FACTURACIÓN --- */}
+                    {/* --- VISTA 3: FACTURACIÓN / SUSCRIPCIÓN (NUEVO COMPONENTE) --- */}
                     {activeTab === 'billing' && (
-                        <div className="max-w-4xl mx-auto text-center py-20 animate-in fade-in slide-in-from-right-4">
-                            <CreditCard size={64} className="mx-auto text-gray-300 mb-6" />
-                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Gestión de Suscripción</h3>
-                            <p className="text-gray-500 mb-8 max-w-md mx-auto">Administra tu plan, métodos de pago y descarga tus facturas directamente desde nuestro portal seguro.</p>
-                            <div className="flex justify-center gap-4">
-                                <button onClick={handlePortal} className="px-6 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white transition">Portal de Facturación</button>
-                                <button onClick={() => setShowSubModal(true)} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition">Cambiar Plan</button>
-                            </div>
-                        </div>
+                        <SubscriptionManager token={token} accountInfo={accountInfo} />
                     )}
                 </main>
             </div>
@@ -486,15 +467,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     token={token}
                     onLogout={onLogout}
                     onClose={() => setSelectedLocation(null)}
-                    onUpgrade={() => setShowSubModal(true)}
-                />
-            )}
-
-            {showSubModal && (
-                <SubscriptionModal
-                    onClose={() => setShowSubModal(false)}
-                    token={token}
-                    accountInfo={accountInfo}
+                    onUpgrade={() => setActiveTab('billing')}
                 />
             )}
         </div>
