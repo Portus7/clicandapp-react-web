@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     X, Check, Zap, Building2, Smartphone, ArrowRight,
     CreditCard, FileText, Layers, PlusCircle, Trash2, ExternalLink, Crown, Box
@@ -47,71 +47,43 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
     const [activeTab, setActiveTab] = useState('new_subscription');
     const [loading, setLoading] = useState(false);
 
-    // 1. Estado Actual del Cliente (Límites Totales)
-    const totalSubs = accountInfo?.limits?.max_subagencies || 0;
-    const totalSlots = accountInfo?.limits?.max_slots || 0;
+    // ESTADO: Datos reales de suscripciones desde el Backend
+    const [realSubscriptions, setRealSubscriptions] = useState([]);
 
-    // 2. Lógica para "Deducir" el Plan Base y los Extras
-    // Determinamos el Plan Base según el escalón más alto alcanzado
+    // 1. Estado Actual del Cliente (Para cálculos de Upgrade en Tab 1)
+    const totalSubs = accountInfo?.limits?.max_subagencies || 0;
+
+    // Determinamos el Plan Base "Teórico" para mostrar opciones de Upgrade correctas
     let basePlan = BASE_PLANS[0]; // Default Regular
     if (totalSubs >= 10) basePlan = BASE_PLANS[2]; // Enterprise
     else if (totalSubs >= 5) basePlan = BASE_PLANS[1]; // Pro
 
     const isEnterprise = basePlan.name === 'Enterprise';
 
-    // Calculamos los Extras (Lo que excede del plan base)
-    const extraSubsCount = Math.max(0, totalSubs - basePlan.limits.subs);
-
-    // Cada Subagencia extra (o base) "regala" 5 slots en tu lógica de negocio actual?
-    // Asumiremos que los slots extras son los que exceden la suma de (Base + (ExtraSubs * 5))
-    // O si tu lógica es distinta, ajustamos. Aquí asumo: Plan Base tiene X slots fijos.
-    // Si compraste el Addon de "Subagencia + 5 Slots", entonces esos slots vienen con la sub.
-    // Slots "Sueltos" puros serían: Total - (Base + (ExtraSubs * 5))
-    const slotsIncludedInSubs = basePlan.limits.slots + (extraSubsCount * 5);
-    const extraSlotsCount = Math.max(0, totalSlots - slotsIncludedInSubs);
-
-    // Lista construida para mostrar en "Mis Suscripciones"
-    const activeServices = [
-        {
-            id: 'base',
-            name: `Plan ${basePlan.name}`,
-            desc: "Suscripción Principal",
-            qty: 1,
-            price: basePlan.price,
-            icon: Crown,
-            color: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20'
-        }
-    ];
-
-    if (extraSubsCount > 0) {
-        activeServices.push({
-            id: 'addon_sub',
-            name: "Paquete Subagencia",
-            desc: "Incluye licencia + 5 Slots",
-            qty: extraSubsCount,
-            price: isEnterprise ? "15€/u" : "30€/u",
-            icon: Building2,
-            color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20'
-        });
-    }
-
-    if (extraSlotsCount > 0) {
-        activeServices.push({
-            id: 'addon_slot',
-            name: "Slot WhatsApp Suelto",
-            desc: "Conexiones adicionales",
-            qty: extraSlotsCount,
-            price: isEnterprise ? "5€/u" : "10€/u",
-            icon: Smartphone,
-            color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20'
-        });
-    }
-
     // Precios y IDs para compra (Marketplace)
     const subPriceId = isEnterprise ? ADDONS.SUB_UNIT_VIP : ADDONS.SUB_UNIT_STD;
     const subDisplayPrice = isEnterprise ? "15€ (VIP)" : "30€";
     const slotPriceId = isEnterprise ? ADDONS.SLOT_UNIT_VIP : ADDONS.SLOT_UNIT_STD;
     const slotDisplayPrice = isEnterprise ? "5€ (VIP)" : "10€";
+
+    // --- EFECTO: Cargar suscripciones reales al cambiar de tab ---
+    useEffect(() => {
+        if (activeTab === 'my_subscriptions') {
+            fetchRealSubscriptions();
+        }
+    }, [activeTab]);
+
+    const fetchRealSubscriptions = async () => {
+        try {
+            const res = await fetch(`${API_URL}/payments/my-subscriptions`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setRealSubscriptions(data);
+            }
+        } catch (e) { console.error("Error cargando suscripciones:", e); }
+    };
 
     // --- ACCIONES ---
     const handlePortal = async () => {
@@ -214,8 +186,7 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     {BASE_PLANS.map((plan) => {
-                                        const isCurrent = plan.limits.subs === totalSubs && plan.limits.slots === totalSlots;
-                                        const isDowngrade = plan.limits.subs < totalSubs;
+                                        const isCurrent = plan.name === basePlan.name; // Simplificado para visualización
 
                                         return (
                                             <div key={plan.id} className={`relative flex flex-col p-6 rounded-2xl transition-all duration-300 border ${isCurrent ? 'border-emerald-500 bg-emerald-50/10' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'}`}>
@@ -235,23 +206,13 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                                                     ))}
                                                 </ul>
 
-                                                {/* Botón Principal (Upgrade) */}
-                                                {!isCurrent && !isDowngrade && (
+                                                {/* Botón Principal */}
+                                                {!isCurrent && (
                                                     <button
                                                         onClick={() => handlePurchase(plan.id)}
                                                         className={`mt-8 w-full py-3 rounded-xl font-bold transition-all text-white hover:opacity-90 hover:scale-[1.02] ${plan.color}`}
                                                     >
-                                                        Mejorar a {plan.name}
-                                                    </button>
-                                                )}
-
-                                                {/* Botón Discreto (Downgrade) */}
-                                                {isDowngrade && (
-                                                    <button
-                                                        onClick={() => handlePurchase(plan.id)}
-                                                        className="mt-8 w-full py-3 text-sm text-gray-400 hover:text-gray-600 underline decoration-dotted"
-                                                    >
-                                                        Reducir a {plan.name}
+                                                        Cambiar a {plan.name}
                                                     </button>
                                                 )}
 
@@ -269,49 +230,65 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                         </div>
                     )}
 
-                    {/* --- TAB 2: MIS SUSCRIPCIONES (Lista Detallada) --- */}
+                    {/* --- TAB 2: MIS SUSCRIPCIONES (DATA REAL DE STRIPE) --- */}
                     {activeTab === 'my_subscriptions' && (
                         <div className="space-y-4 max-w-5xl mx-auto">
                             <div className="mb-6 flex justify-between items-center">
                                 <div>
                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">Servicios Contratados</h3>
-                                    <p className="text-sm text-gray-500">Detalle de tus planes y paquetes activos.</p>
+                                    <p className="text-sm text-gray-500">Listado sincronizado automáticamente con Stripe.</p>
                                 </div>
                                 <button onClick={handlePortal} className="text-sm font-medium text-red-500 hover:text-red-600 flex items-center gap-1">
-                                    <ExternalLink size={14} /> Gestionar Cancelaciones
+                                    <ExternalLink size={14} /> Gestionar en Stripe
                                 </button>
                             </div>
 
-                            {activeServices.map((service) => (
-                                <div key={service.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 flex flex-col md:flex-row items-center justify-between shadow-sm">
-                                    <div className="flex items-center gap-4 w-full md:w-auto">
-                                        <div className={`p-3 rounded-xl ${service.color}`}>
-                                            <service.icon size={24} />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-gray-900 dark:text-white text-lg">{service.name}</h4>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">{service.desc}</p>
-                                        </div>
+                            {realSubscriptions.length === 0 ? (
+                                <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
+                                    <div className="mx-auto w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-3 text-gray-400">
+                                        <Layers size={24} />
                                     </div>
-
-                                    <div className="flex items-center gap-8 mt-4 md:mt-0 w-full md:w-auto justify-between md:justify-end">
-                                        <div className="text-center">
-                                            <p className="text-xs text-gray-400 uppercase font-bold mb-1">Cantidad</p>
-                                            <span className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-white px-3 py-1 rounded-lg font-mono font-bold text-sm">
-                                                x{service.qty}
-                                            </span>
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-xs text-gray-400 uppercase font-bold mb-1">Precio Unitario</p>
-                                            <p className="font-bold text-gray-900 dark:text-white text-sm">{service.price}</p>
-                                        </div>
-                                        <div className="text-center hidden sm:block">
-                                            <p className="text-xs text-gray-400 uppercase font-bold mb-1">Estado</p>
-                                            <span className="text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">Activo</span>
-                                        </div>
-                                    </div>
+                                    <p className="text-gray-500 dark:text-gray-400 font-medium">No se encontraron suscripciones activas.</p>
+                                    <p className="text-xs text-gray-400 mt-1">Si acabas de pagar, espera unos segundos y recarga.</p>
                                 </div>
-                            ))}
+                            ) : (
+                                realSubscriptions.map((sub) => (
+                                    <div key={sub.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 flex flex-col md:flex-row items-center justify-between shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                                        <div className="flex items-center gap-4 w-full md:w-auto">
+                                            <div className={`p-3 rounded-xl ${sub.type === 'base' ? 'bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400' : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400'}`}>
+                                                {sub.type === 'base' ? <Crown size={24} /> : <Building2 size={24} />}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-gray-900 dark:text-white text-lg">{sub.product_name}</h4>
+                                                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 font-mono text-xs">
+                                                    <span>ID: {sub.stripe_subscription_id?.slice(-8)}</span>
+                                                    {sub.quantity > 1 && (
+                                                        <span className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-700 dark:text-gray-300 font-bold">x{sub.quantity}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-8 mt-4 md:mt-0 w-full md:w-auto justify-between md:justify-end">
+                                            <div className="text-center">
+                                                <p className="text-xs text-gray-400 uppercase font-bold mb-1">Renovación</p>
+                                                <span className="text-gray-700 dark:text-gray-300 text-sm font-medium">
+                                                    {sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : 'N/A'}
+                                                </span>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-xs text-gray-400 uppercase font-bold mb-1">Estado</p>
+                                                <span className={`text-xs font-bold px-2 py-1 rounded capitalize ${sub.status === 'active'
+                                                        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400'
+                                                        : 'bg-red-50 text-red-600 dark:bg-red-900/20'
+                                                    }`}>
+                                                    {sub.status}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     )}
 
