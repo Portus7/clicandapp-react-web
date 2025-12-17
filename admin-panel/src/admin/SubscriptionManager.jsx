@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Check, Zap, Building2, Smartphone,
     CreditCard, FileText, ExternalLink, Crown, AlertCircle,
-    ArrowUpCircle, Plus, ChevronRight, Package, Shield, PlusCircle
+    ArrowUpCircle, Plus, ChevronRight, Package, Shield
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
@@ -47,7 +47,6 @@ const ADDONS = {
     SLOT_UNIT_VIP: 'price_1SfK827Mhd9qo6A89iZ68SRi'
 };
 
-// ⬇️ ESTA ES LA LÍNEA CLAVE QUE DEBE EXISTIR ⬇️
 export default function SubscriptionManager({ token, accountInfo }) {
     const [activeTab, setActiveTab] = useState('services'); // services | payments | invoices
     const [loading, setLoading] = useState(false);
@@ -148,10 +147,23 @@ export default function SubscriptionManager({ token, accountInfo }) {
                             <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                 <Package size={20} className="text-indigo-500" /> Servicios Contratados
                             </h3>
+
+                            {/* 🔥 BOTÓN PARA CONTRATAR NUEVO PLAN (ACUMULABLE) */}
                             {subscriptions.length > 0 && (
-                                <span className={`text-xs font-bold px-3 py-1 rounded-full border ${hasVolumeDiscount ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                                    Nivel: {hasVolumeDiscount ? 'VIP (Descuentos Activos)' : 'Estándar'}
-                                </span>
+                                <button
+                                    onClick={() => setShowPlans(!showPlans)}
+                                    className={`text-xs font-bold px-4 py-2 rounded-lg transition border flex items-center gap-2 
+                                    ${showPlans
+                                            ? 'bg-gray-200 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600'
+                                            : 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 shadow-sm'
+                                        }`}
+                                >
+                                    {showPlans ? (
+                                        <>Cerrar Catálogo <ChevronRight size={14} className="rotate-90" /></>
+                                    ) : (
+                                        <><Plus size={14} /> Contratar Nuevo Plan</>
+                                    )}
+                                </button>
                             )}
                         </div>
 
@@ -205,14 +217,6 @@ export default function SubscriptionManager({ token, accountInfo }) {
 
                                             {/* Acciones por Item */}
                                             <div className="flex gap-2">
-                                                {sub.type === 'base' && (
-                                                    <button
-                                                        onClick={() => setShowPlans(!showPlans)}
-                                                        className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300 rounded-lg text-sm font-bold transition flex items-center gap-2"
-                                                    >
-                                                        <ArrowUpCircle size={16} /> {showPlans ? 'Ocultar Planes' : 'Mejorar Plan'}
-                                                    </button>
-                                                )}
                                                 <button
                                                     onClick={handlePortal}
                                                     className="p-2 text-gray-400 hover:text-red-500 bg-gray-50 hover:bg-red-50 dark:bg-gray-800 dark:hover:bg-red-900/20 rounded-lg transition"
@@ -228,12 +232,21 @@ export default function SubscriptionManager({ token, accountInfo }) {
                         )}
                     </div>
 
-                    {/* 2. GRID DE PLANES BASE (Visible si no hay servicios O si se pide "Mejorar") */}
-                    {showPlans && (
+                    {/* 2. GRID DE PLANES BASE (CATÁLOGO) */}
+                    {/* Se muestra si no hay suscripciones O si se activa manualmente con el botón */}
+                    {(showPlans || subscriptions.length === 0) && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <Shield size={18} className="text-indigo-500" /> Planes Disponibles
-                            </h3>
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <Shield size={18} className="text-indigo-500" /> Catálogo de Planes
+                                </h3>
+                                {subscriptions.length > 0 && (
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                        Estos planes se sumarán a tu suscripción actual.
+                                    </span>
+                                )}
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 {BASE_PLANS.map((plan) => (
                                     <div key={plan.id} className={`relative bg-white dark:bg-gray-900 border rounded-2xl p-6 flex flex-col transition-all hover:shadow-xl hover:-translate-y-1 ${plan.recommended ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200 dark:border-gray-800'}`}>
@@ -259,7 +272,7 @@ export default function SubscriptionManager({ token, accountInfo }) {
                                             onClick={() => handlePurchase(plan.id)}
                                             className={`w-full py-3 rounded-xl font-bold text-white transition shadow-lg shadow-indigo-200 dark:shadow-none ${plan.color} hover:opacity-90 active:scale-95`}
                                         >
-                                            {loading ? 'Procesando...' : 'Seleccionar Plan'}
+                                            {loading ? 'Procesando...' : 'Contratar Plan'}
                                         </button>
                                     </div>
                                 ))}
