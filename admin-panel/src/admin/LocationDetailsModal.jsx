@@ -499,9 +499,20 @@ const TabButton = ({ active, onClick, icon, label, disabled }) => (
 );
 
 const SettingRow = ({ label, desc, checked, onChange }) => (
-    <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer" onClick={onChange}>
-        <div><p className="text-sm font-bold text-gray-800">{label}</p><p className="text-xs text-gray-500">{desc}</p></div>
-        <div className={`w-10 h-6 flex items-center rounded-full p-1 transition-colors ${checked ? 'bg-indigo-600' : 'bg-gray-300'}`}>
+    <div
+        className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer"
+        onClick={onChange}
+    >
+        <div>
+            {/* CORRECCIÓN: Agregado dark:text-gray-200 para que se vea blanco en modo oscuro */}
+            <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{label}</p>
+
+            {/* CORRECCIÓN: Agregado dark:text-gray-400 para la descripción */}
+            <p className="text-xs text-gray-500 dark:text-gray-400">{desc}</p>
+        </div>
+
+        {/* Switch Toggle */}
+        <div className={`w-10 h-6 flex items-center rounded-full p-1 transition-colors ${checked ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}>
             <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`}></div>
         </div>
     </div>
