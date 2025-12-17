@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     X, Check, Zap, Building2, Smartphone,
-    CreditCard, FileText, Layers, PlusCircle, ExternalLink, Crown, AlertCircle
+    CreditCard, FileText, Layers, PlusCircle, ExternalLink, Crown, AlertCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
@@ -24,6 +24,9 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
     // Estado para suscripciones reales traídas de Stripe/DB
     const [realSubscriptions, setRealSubscriptions] = useState([]);
     const [fetching, setFetching] = useState(true);
+
+    // Estado para mostrar/ocultar el menú de agregar servicios
+    const [showServiceMenu, setShowServiceMenu] = useState(false);
 
     // 1. Estado Actual del Cliente (Límites Totales para calcular descuentos)
     const totalSubs = accountInfo?.limits?.max_subagencies || 0;
@@ -53,6 +56,8 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
             if (res.ok) {
                 const data = await res.json();
                 setRealSubscriptions(data);
+                // Si no tiene servicios, abrimos el menú automáticamente para invitar a comprar
+                if (data.length === 0) setShowServiceMenu(true);
             }
         } catch (e) { console.error("Error cargando suscripciones:", e); }
         finally { setFetching(false); }
@@ -120,111 +125,127 @@ export default function SubscriptionModal({ onClose, token, accountInfo }) {
                 {/* CONTENIDO PRINCIPAL */}
                 <div className="flex-1 overflow-y-auto p-8 bg-gray-50 dark:bg-[#0B0D12]">
 
-                    {/* === VISTA 1: RESUMEN (LISTA + ADDONS) === */}
+                    {/* === VISTA 1: RESUMEN (LISTA + BOTÓN AGREGAR) === */}
                     {activeTab === 'overview' && (
-                        <div className="max-w-4xl mx-auto space-y-10">
+                        <div className="max-w-4xl mx-auto space-y-8">
 
-                            {/* SECCIÓN A: MIS PLANES ACTIVOS */}
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-end">
-                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                        <Check size={18} className="text-emerald-500" /> Servicios Activos
-                                    </h3>
-                                    {realSubscriptions.length > 0 && (
-                                        <button onClick={handlePortal} className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition">
-                                            Gestionar en Stripe
-                                        </button>
-                                    )}
-                                </div>
-
-                                {fetching ? (
-                                    <div className="text-center py-8 text-gray-400">Cargando suscripciones...</div>
-                                ) : realSubscriptions.length === 0 ? (
-                                    <div className="bg-white dark:bg-gray-800 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-8 text-center">
-                                        <div className="mx-auto w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-3 text-gray-400">
-                                            <AlertCircle size={24} />
-                                        </div>
-                                        <h4 className="text-gray-900 dark:text-white font-bold">No tienes un plan activo</h4>
-                                        <p className="text-sm text-gray-500 mt-1">Añade subagencias o números abajo para comenzar.</p>
-                                    </div>
-                                ) : (
-                                    realSubscriptions.map((sub) => (
-                                        <div key={sub.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 flex flex-col md:flex-row items-center justify-between shadow-sm animate-in fade-in slide-in-from-bottom-2">
-                                            <div className="flex items-center gap-4 w-full md:w-auto">
-                                                <div className={`p-3 rounded-xl ${sub.type === 'base' ? 'bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400' : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400'}`}>
-                                                    {sub.type === 'base' ? <Crown size={24} /> : <Building2 size={24} />}
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-gray-900 dark:text-white text-lg">{sub.product_name}</h4>
-                                                    <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 font-mono text-xs">
-                                                        <span className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">ID: {sub.stripe_subscription_id?.slice(-8)}</span>
-                                                        {sub.quantity > 1 && (
-                                                            <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 px-2 py-0.5 rounded font-bold">x{sub.quantity}</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center gap-6 mt-4 md:mt-0 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-gray-100 dark:border-gray-700 pt-4 md:pt-0">
-                                                <div className="text-right">
-                                                    <p className="text-[10px] text-gray-400 uppercase font-bold mb-0.5">Renovación</p>
-                                                    <span className="text-gray-700 dark:text-gray-300 text-sm font-bold">
-                                                        {sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : 'N/A'}
-                                                    </span>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-[10px] text-gray-400 uppercase font-bold mb-0.5">Estado</p>
-                                                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize ${sub.status === 'active'
-                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                                            : 'bg-red-100 text-red-700 dark:bg-red-900/30'
-                                                        }`}>
-                                                        {sub.status}
-                                                    </span>
-                                                </div>
-                                                {/* Botón de acciones para cada item */}
-                                                <button
-                                                    onClick={handlePortal}
-                                                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
-                                                    title="Cancelar o Modificar en Stripe"
-                                                >
-                                                    <ExternalLink size={18} />
+                            {/* SECCIÓN A: LISTA DE SERVICIOS */}
+                            {fetching ? (
+                                <div className="text-center py-8 text-gray-400 animate-pulse">Cargando suscripciones...</div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {realSubscriptions.length > 0 ? (
+                                        <>
+                                            <div className="flex justify-between items-end mb-2">
+                                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                    <Check size={18} className="text-emerald-500" /> Servicios Activos
+                                                </h3>
+                                                <button onClick={handlePortal} className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg transition">
+                                                    Administrar en Stripe
                                                 </button>
                                             </div>
+
+                                            {/* LISTA DE ITEMS */}
+                                            {realSubscriptions.map((sub) => (
+                                                <div key={sub.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 flex flex-col md:flex-row items-center justify-between shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                                                    <div className="flex items-center gap-4 w-full md:w-auto">
+                                                        <div className={`p-3 rounded-xl ${sub.type === 'base' ? 'bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400' : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400'}`}>
+                                                            {sub.type === 'base' ? <Crown size={24} /> : <Building2 size={24} />}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-bold text-gray-900 dark:text-white text-lg">{sub.product_name}</h4>
+                                                            <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 font-mono text-xs">
+                                                                <span className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">ID: {sub.stripe_subscription_id?.slice(-8)}</span>
+                                                                {sub.quantity > 1 && (
+                                                                    <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 px-2 py-0.5 rounded font-bold">x{sub.quantity}</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-6 mt-4 md:mt-0 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-gray-100 dark:border-gray-700 pt-4 md:pt-0">
+                                                        <div className="text-right">
+                                                            <p className="text-[10px] text-gray-400 uppercase font-bold mb-0.5">Renovación</p>
+                                                            <span className="text-gray-700 dark:text-gray-300 text-sm font-bold">
+                                                                {sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : 'N/A'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-[10px] text-gray-400 uppercase font-bold mb-0.5">Estado</p>
+                                                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize ${sub.status === 'active'
+                                                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                                                    : 'bg-red-100 text-red-700 dark:bg-red-900/30'
+                                                                }`}>
+                                                                {sub.status}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </>
+                                    ) : (
+                                        /* ESTADO VACÍO (SIN SERVICIOS) */
+                                        <div className="bg-white dark:bg-gray-800 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-10 text-center mb-6">
+                                            <div className="mx-auto w-16 h-16 bg-gray-50 dark:bg-gray-700/50 rounded-full flex items-center justify-center mb-4 text-gray-400">
+                                                <AlertCircle size={32} />
+                                            </div>
+                                            <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No tienes servicios activos</h4>
+                                            <p className="text-gray-500 mb-6 max-w-sm mx-auto">
+                                                Parece que aún no has contratado ningún plan o servicio. Agrega uno para comenzar.
+                                            </p>
                                         </div>
-                                    ))
-                                )}
-                            </div>
-
-                            <hr className="border-gray-200 dark:border-gray-800" />
-
-                            {/* SECCIÓN B: AMPLIAR RECURSOS (ADD-ONS) */}
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                                    <Zap size={18} className="text-yellow-500 fill-current" /> Ampliar Recursos
-                                    {hasVolumeDiscount && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200 animate-pulse">Descuento VIP Activo</span>}
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {/* Tarjeta Subagencia */}
-                                    <AddonCard
-                                        title="Subcuenta Adicional"
-                                        desc="Incluye licencia de agencia + 5 Slots WhatsApp gratis."
-                                        price={subDisplayPrice}
-                                        icon={Building2}
-                                        color="indigo"
-                                        features={['Acceso CRM completo', 'Gestión independiente', '5 Números incluidos']}
-                                        onBuy={() => handlePurchase(subPriceId)}
-                                    />
-                                    {/* Tarjeta Slot */}
-                                    <AddonCard
-                                        title="WhatsApp Adicional"
-                                        desc="Añade más números a cualquier subcuenta existente."
-                                        price={slotDisplayPrice}
-                                        icon={Smartphone}
-                                        color="emerald"
-                                        features={['Línea dedicada', 'Multi-dispositivo', 'Reconexión automática']}
-                                        onBuy={() => handlePurchase(slotPriceId)}
-                                    />
+                                    )}
                                 </div>
+                            )}
+
+                            {/* SECCIÓN B: BOTÓN AGREGAR SERVICIO */}
+                            <div className="pt-2">
+                                {!showServiceMenu ? (
+                                    <button
+                                        onClick={() => setShowServiceMenu(true)}
+                                        className="w-full py-4 border-2 border-dashed border-indigo-200 dark:border-indigo-900 hover:border-indigo-500 dark:hover:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/10 text-indigo-600 dark:text-indigo-400 rounded-xl font-bold flex items-center justify-center gap-2 transition-all hover:bg-indigo-50 hover:shadow-sm"
+                                    >
+                                        <PlusCircle size={20} />
+                                        Agregar Nuevo Servicio
+                                    </button>
+                                ) : (
+                                    <div className="bg-gray-100 dark:bg-gray-800/50 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 animate-in fade-in slide-in-from-top-4">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <Zap size={18} className="text-yellow-500 fill-current" /> Selecciona un Servicio
+                                            </h3>
+                                            <button
+                                                onClick={() => setShowServiceMenu(false)}
+                                                className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                                            >
+                                                Ocultar <ChevronUp size={16} />
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {/* Tarjeta Subagencia */}
+                                            <AddonCard
+                                                title="Subcuenta Adicional"
+                                                desc="Licencia agencia + 5 Slots WhatsApp."
+                                                price={subDisplayPrice}
+                                                icon={Building2}
+                                                color="indigo"
+                                                features={['Acceso CRM', 'Gestión independiente', '5 Números incluidos']}
+                                                onBuy={() => handlePurchase(subPriceId)}
+                                            />
+                                            {/* Tarjeta Slot */}
+                                            <AddonCard
+                                                title="WhatsApp Adicional"
+                                                desc="Añade más números a una subcuenta."
+                                                price={slotDisplayPrice}
+                                                icon={Smartphone}
+                                                color="emerald"
+                                                features={['Línea dedicada', 'Reconexión automática', 'Multi-dispositivo']}
+                                                onBuy={() => handlePurchase(slotPriceId)}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                         </div>
@@ -309,7 +330,7 @@ const AddonCard = ({ title, desc, price, icon: Icon, color, features, onBuy }) =
                 onClick={onBuy}
                 className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm transition shadow-md flex items-center justify-center gap-2"
             >
-                <PlusCircle size={16} /> Añadir
+                <PlusCircle size={16} /> Contratar
             </button>
         </div>
     </div>
