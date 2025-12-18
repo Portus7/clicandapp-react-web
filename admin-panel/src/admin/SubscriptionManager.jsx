@@ -63,7 +63,7 @@ const PLAN_DETAILS = {
     'price_1SfJqb7Mhd9qo6A8zP0xydlX': { label: '5 Subcuentas / 25 Slots' },
     'price_1SfJrZ7Mhd9qo6A8WOn6BGbJ': { label: '10 Subcuentas / 50 Slots' },
 
-    // VIP IDs
+    // VIP IDs - Asegúrate de que estos IDs coincidan con los de tu backend
     'price_1SfK547Mhd9qo6A8SfvT8GF4': { label: '+1 Subcuenta (VIP)' },
 
     // Slot IDs
@@ -84,6 +84,7 @@ export default function SubscriptionManager({ token, accountInfo }) {
     const hasVolumeDiscount = totalSubs >= 10;
 
     // 2. Seleccionar Precios Dinámicos
+    // Si es VIP, usa el precio reducido. Si no, usa el precio estándar.
     const subPriceId = hasVolumeDiscount ? ADDONS.SUB_UNIT_VIP : ADDONS.SUB_UNIT_STD;
     const subDisplayPrice = hasVolumeDiscount ? "10€ (VIP)" : "20€";
 
@@ -249,17 +250,17 @@ export default function SubscriptionManager({ token, accountInfo }) {
                                                                         ${isCurrent
                                                                                 ? 'bg-white dark:bg-gray-800 border-indigo-500 ring-2 ring-indigo-500 opacity-80 cursor-default'
                                                                                 : isDowngrade
-                                                                                    // 🔽 ESTILO DOWNGRADE: Sutil, gris, sin borde fuerte
-                                                                                    ? 'bg-transparent border-transparent hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 grayscale opacity-70 hover:opacity-100'
-                                                                                    // 🔼 ESTILO UPGRADE: Llamativo
+                                                                                    // 🔽 ESTILO DOWNGRADE: Muy sutil, casi invisible si no pasas el mouse
+                                                                                    ? 'bg-transparent border-transparent text-gray-400 opacity-50 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-600 scale-90'
+                                                                                    // 🔼 ESTILO UPGRADE: Normal y destacado
                                                                                     : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-indigo-400 hover:shadow-md cursor-pointer'
                                                                             }`}
                                                                     >
                                                                         <div className="flex justify-between items-start mb-2">
-                                                                            <span className="font-bold text-sm text-gray-900 dark:text-white">{plan.name}</span>
+                                                                            <span className={`font-bold text-sm ${isDowngrade ? 'text-gray-500' : 'text-gray-900 dark:text-white'}`}>{plan.name}</span>
                                                                             {isCurrent && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">ACTUAL</span>}
                                                                         </div>
-                                                                        <div className="text-2xl font-extrabold text-gray-900 dark:text-white mb-1">{plan.price}</div>
+                                                                        <div className={`text-2xl font-extrabold mb-1 ${isDowngrade ? 'text-gray-400' : 'text-gray-900 dark:text-white'}`}>{plan.price}</div>
                                                                         <div className="text-xs text-gray-500 dark:text-gray-400">{plan.limits.subs} Agencias / {plan.limits.slots} Slots</div>
 
                                                                         {!isCurrent && (
