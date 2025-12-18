@@ -435,6 +435,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                                 </div>
                             </div>
 
+                            {/* ✅ NUEVA TARJETA: SEGURIDAD (CAMBIO DE PASSWORD) */}
+                            <SecurityCard token={token} />
+
                             {/* Tarjeta Apariencia */}
                             <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">Apariencia</h3>
@@ -480,3 +483,102 @@ export default function AgencyDashboard({ token, onLogout }) {
         </div>
     );
 }
+
+// 🔐 COMPONENTE SECURITY CARD (CAMBIO DE CONTRASEÑA)
+const SecurityCard = ({ token }) => {
+    const [passData, setPassData] = useState({ current: '', new: '', confirm: '' });
+    const [loading, setLoading] = useState(false);
+
+    const handleChangePassword = async (e) => {
+        e.preventDefault();
+
+        if (passData.new !== passData.confirm) {
+            toast.error("Las contraseñas nuevas no coinciden");
+            return;
+        }
+        if (passData.new.length < 6) {
+            toast.error("La contraseña debe tener al menos 6 caracteres");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const res = await fetch(`${API_URL}/auth/change-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    currentPassword: passData.current,
+                    newPassword: passData.new
+                })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                toast.success("Contraseña actualizada correctamente");
+                setPassData({ current: '', new: '', confirm: '' }); // Limpiar form
+            } else {
+                toast.error(data.error || "Error al actualizar");
+            }
+        } catch (err) {
+            toast.error("Error de conexión");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                <ShieldCheck size={20} /> Seguridad
+            </h3>
+            <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña Actual</label>
+                    <input
+                        type="password"
+                        required
+                        className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white"
+                        value={passData.current}
+                        onChange={e => setPassData({ ...passData, current: e.target.value })}
+                    />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva Contraseña</label>
+                        <input
+                            type="password"
+                            required
+                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white"
+                            value={passData.new}
+                            onChange={e => setPassData({ ...passData, new: e.target.value })}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar Nueva</label>
+                        <input
+                            type="password"
+                            required
+                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white"
+                            value={passData.confirm}
+                            onChange={e => setPassData({ ...passData, confirm: e.target.value })}
+                        />
+                    </div>
+                </div>
+                <div className="pt-2">
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition shadow-lg shadow-indigo-200 dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        {loading ? <RefreshCw className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                        Actualizar Contraseña
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+};
