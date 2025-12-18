@@ -344,14 +344,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         <div className="flex gap-1">
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); toggleFavorite(slot.slot_id, slot.is_favorite); }}
-                                                                className={`p-1.5 rounded-lg transition ${slot.is_favorite ? 'text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400 hover:bg-gray-100'}`}
+                                                                className={`p-1.5 rounded-lg transition ${slot.is_favorite ? 'text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-300 hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
                                                                 title="Favorito"
                                                             >
                                                                 <Star size={18} fill={slot.is_favorite ? "currentColor" : "none"} />
                                                             </button>
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); editSlotName(slot.slot_id, slot.slot_name); }}
-                                                                className="p-1.5 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                                                className="p-1.5 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition"
                                                             >
                                                                 <Edit2 size={16} />
                                                             </button>
@@ -359,17 +359,17 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     </div>
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 font-mono mt-1 flex items-center gap-2">
                                                         {isConnected ? <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{slot.phone_number}</span> : 'Desconectado'}
-                                                        <span className="text-gray-300">•</span>
+                                                        <span className="text-gray-300 dark:text-gray-600">•</span>
                                                         <span>Prioridad: {currentPrio}</span>
                                                     </p>
                                                 </div>
                                             </div>
 
                                             <div className="flex items-center gap-3">
-                                                <span className={`text-xs font-bold px-3 py-1.5 rounded-lg uppercase tracking-wide transition-colors ${isExpanded ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                <span className={`text-xs font-bold px-3 py-1.5 rounded-lg uppercase tracking-wide transition-colors ${isExpanded ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
                                                     {isExpanded ? 'Editando' : 'Gestionar'}
                                                 </span>
-                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.slot_id); }} className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition" disabled={deletingSlotId === slot.slot_id}>
+                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.slot_id); }} className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition" disabled={deletingSlotId === slot.slot_id}>
                                                     {deletingSlotId === slot.slot_id ? <Loader2 className="animate-spin" size={20} /> : <Trash2 size={20} />}
                                                 </button>
                                             </div>
@@ -395,7 +395,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Orden de Envío</h4>
                                                                 <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
                                                                     <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Nivel de Prioridad:</label>
-                                                                    <select className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none" value={currentPrio} onChange={(e) => changePriority(slot.slot_id, e.target.value)}>
+                                                                    <select className="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none" value={currentPrio} onChange={(e) => changePriority(slot.slot_id, e.target.value)}>
                                                                         {Array.from({ length: slots.length }, (_, k) => k + 1).map(p => <option key={p} value={p}>{p} {p === 1 ? '(Alta)' : ''}</option>)}
                                                                         {currentPrio > slots.length && <option value={currentPrio}>{currentPrio}</option>}
                                                                     </select>
@@ -416,19 +416,19 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         <div className="max-w-2xl space-y-6">
                                                             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Tag Automático (Entrante)</label>
-                                                                <input type="text" placeholder="Ej: whatsapp-ventas" className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.ghl_contact_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_contact_tag', e.target.value, settings)} />
+                                                                <input type="text" placeholder="Ej: whatsapp-ventas" className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.ghl_contact_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_contact_tag', e.target.value, settings)} />
                                                             </div>
                                                             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Usuario Responsable</label>
-                                                                <select className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none" value={settings.ghl_assigned_user || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_assigned_user', e.target.value, settings)}>
+                                                                <select className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={settings.ghl_assigned_user || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'ghl_assigned_user', e.target.value, settings)}>
                                                                     <option value="">-- Sin asignar --</option>
                                                                     {ghlUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                                 </select>
                                                             </div>
                                                             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                                                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Tag de Enrutamiento (Prioridad)</label>
-                                                                <input type="text" placeholder="Ej: soporte" className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.routing_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, settings)} />
-                                                                <p className="text-xs text-gray-500 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usará este número.</p>
+                                                                <input type="text" placeholder="Ej: soporte" className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition" value={settings.routing_tag || ""} onChange={(e) => changeSlotSetting(slot.slot_id, 'routing_tag', e.target.value, settings)} />
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Si el contacto tiene el tag <strong>[PRIOR]: {settings.routing_tag || "..."}</strong>, se usará este número.</p>
                                                             </div>
                                                         </div>
                                                     )}
@@ -437,14 +437,14 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     {activeSlotTab === 'keywords' && (
                                                         <div className="max-w-2xl">
                                                             <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
-                                                                <input name="keyword" required placeholder="Si el cliente dice..." className="flex-1 p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                                                <input name="tag" required placeholder="Agregar tag..." className="w-1/3 p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                                <input name="keyword" required placeholder="Si el cliente dice..." className="flex-1 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                                <input name="tag" required placeholder="Agregar tag..." className="w-1/3 p-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none" />
                                                                 <button type="submit" className="bg-indigo-600 text-white px-5 rounded-xl hover:bg-indigo-700 font-bold"><Plus size={20} /></button>
                                                             </form>
                                                             <div className="space-y-2">
                                                                 {keywords.filter(k => k.slot_id === slot.slot_id).map(k => (
-                                                                    <div key={k.id} className="flex justify-between items-center bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
-                                                                        <div className="flex gap-2 items-center"><span className="font-bold">"{k.keyword}"</span> <span className="text-gray-400">→</span> <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-xs font-bold">{k.tag}</span></div>
+                                                                    <div key={k.id} className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                        <div className="flex gap-2 items-center"><span className="font-bold text-gray-800 dark:text-white">"{k.keyword}"</span> <span className="text-gray-400">→</span> <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-bold">{k.tag}</span></div>
                                                                         <button onClick={() => deleteKeyword(k.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
                                                                     </div>
                                                                 ))}
@@ -456,22 +456,22 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                     {activeSlotTab === 'groups' && (
                                                         <div className="max-w-2xl">
                                                             <div className="flex justify-between items-center mb-6">
-                                                                <h4 className="font-bold text-gray-700">Grupos Detectados</h4>
-                                                                <button onClick={() => loadGroups(slot.slot_id)} className="text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg transition"><RefreshCw size={18} /></button>
+                                                                <h4 className="font-bold text-gray-700 dark:text-gray-300">Grupos Detectados</h4>
+                                                                <button onClick={() => loadGroups(slot.slot_id)} className="text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 p-2 rounded-lg transition"><RefreshCw size={18} /></button>
                                                             </div>
                                                             {loadingGroups ? <div className="text-center py-10"><RefreshCw className="animate-spin mx-auto text-indigo-500" /></div> :
                                                                 <div className="space-y-3">
                                                                     {groups.map(g => {
                                                                         const isActive = settings.groups?.[g.id]?.active;
                                                                         return (
-                                                                            <div key={g.id} className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                                                                <div><h5 className="font-bold text-gray-800">{g.subject}</h5><p className="text-xs text-gray-500">{g.participants} participantes</p></div>
+                                                                            <div key={g.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                                                                <div><h5 className="font-bold text-gray-800 dark:text-white">{g.subject}</h5><p className="text-xs text-gray-500 dark:text-gray-400">{g.participants} participantes</p></div>
                                                                                 <div className="flex items-center gap-4">
                                                                                     <label className="relative inline-flex items-center cursor-pointer">
                                                                                         <input type="checkbox" className="sr-only peer" checked={!!isActive} onChange={() => toggleGroupActive(slot.slot_id, g.id, g.subject, settings)} />
-                                                                                        <div className="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-indigo-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                                                                                        <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:ring-4 peer-focus:ring-indigo-100 dark:peer-focus:ring-indigo-900 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                                                                                     </label>
-                                                                                    <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg" title="Sincronizar Miembros"><Users size={18} /></button>
+                                                                                    <button onClick={() => handleSyncMembers(slot.slot_id, g.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 dark:hover:bg-indigo-900/40 rounded-lg" title="Sincronizar Miembros"><Users size={18} /></button>
                                                                                 </div>
                                                                             </div>
                                                                         )
@@ -496,7 +496,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
 // Subcomponentes
 const TabButton = ({ active, onClick, icon, label, disabled }) => (
-    <button onClick={onClick} disabled={disabled} className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-colors ${active ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+    <button onClick={onClick} disabled={disabled} className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-colors ${active ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
         {icon} {label}
     </button>
 );
