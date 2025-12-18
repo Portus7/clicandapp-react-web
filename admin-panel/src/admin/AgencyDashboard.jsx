@@ -71,10 +71,9 @@ export default function AgencyDashboard({ token, onLogout }) {
     }, [AGENCY_ID]);
 
     // --- FUNCIONES DE CARGA ---
-    // ✅ ESTA ES LA CLAVE: Una función que recarga TODO
     const refreshData = async () => {
         if (!AGENCY_ID) { setLoading(false); return; }
-        setLoading(true); // Opcional: Si quieres spinner global cada vez, descomenta. Si no, es "silencioso".
+        setLoading(true);
 
         try {
             const [locRes, accRes] = await Promise.all([
@@ -124,7 +123,6 @@ export default function AgencyDashboard({ token, onLogout }) {
         }, 1000);
     };
 
-    // ELIMINAR SUBCUENTA
     const handleDeleteTenant = async (e, locationId, name) => {
         e.stopPropagation();
         if (!confirm(`⚠️ ¿Eliminar subcuenta "${name || locationId}"?\n\nSe borrarán todos sus datos y desconectarán los WhatsApps.`)) return;
@@ -134,7 +132,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             const res = await authFetch(`/agency/tenants/${locationId}`, { method: 'DELETE' });
             if (res.ok) {
                 toast.success("Subcuenta eliminada");
-                refreshData(); // 🔥 Recarga inmediata
+                refreshData();
             } else {
                 throw new Error("Error al eliminar");
             }
@@ -157,7 +155,6 @@ export default function AgencyDashboard({ token, onLogout }) {
         window.location.href = INSTALL_APP_URL;
     };
 
-    // Filtros
     const filteredLocations = locations.filter(loc =>
         loc.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         loc.location_id?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -183,8 +180,6 @@ export default function AgencyDashboard({ token, onLogout }) {
     }
 
     if (isAutoSyncing) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900"><div className="animate-spin w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full"></div></div>;
-
-    // --- COMPONENTES INTERNOS ---
 
     const SidebarItem = ({ id, icon: Icon, label }) => (
         <button
@@ -326,7 +321,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 onChange={e => setSearchTerm(e.target.value)}
                                             />
                                         </div>
-                                        {/* 🔥 BOTÓN DE RECARGA MANUAL AHORA USA refreshData */}
                                         <button onClick={refreshData} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition"><RefreshCw size={18} className={loading ? "animate-spin" : ""} /></button>
                                         <button onClick={handleInstallApp} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2 text-sm shadow-lg shadow-indigo-200 dark:shadow-none whitespace-nowrap"><Plus size={18} /> Nueva</button>
                                     </div>
@@ -336,7 +330,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                     <div className="py-20 text-center text-gray-400">Cargando datos...</div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {/* 1. Tarjetas de Subcuentas Reales */}
                                         {filteredLocations.map(loc => (
                                             <div
                                                 key={loc.location_id}
@@ -367,7 +360,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             </div>
                                         ))}
 
-                                        {/* 2. Tarjetas de Espacio Disponible (Huecos Vacíos) */}
                                         {!searchTerm && accountInfo && Array.from({ length: Math.max(0, accountInfo.limits.max_subagencies - locations.length) }).map((_, idx) => (
                                             <div
                                                 key={`empty-${idx}`}
@@ -382,7 +374,6 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             </div>
                                         ))}
 
-                                        {/* 3. Tarjeta Upsell (Si no hay huecos) */}
                                         {!searchTerm && accountInfo && (accountInfo.limits.max_subagencies - locations.length) === 0 && (
                                             <div
                                                 onClick={() => setActiveTab('billing')}
@@ -459,7 +450,6 @@ export default function AgencyDashboard({ token, onLogout }) {
 
                     {/* --- VISTA 3: FACTURACIÓN / SUSCRIPCIÓN --- */}
                     {activeTab === 'billing' && (
-                        // 🔥 LE PASAMOS refreshData AL HIJO PARA QUE ACTUALICE LA UI AL CAMBIAR PLANES
                         <SubscriptionManager
                             token={token}
                             accountInfo={accountInfo}
@@ -477,7 +467,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     onLogout={onLogout}
                     onClose={() => setSelectedLocation(null)}
                     onUpgrade={() => setActiveTab('billing')}
-                    onDataChange={refreshData} // 🔥 TAMBIÉN AQUÍ PARA ACTUALIZAR CONTADOR DE SLOTS
+                    onDataChange={refreshData}
                 />
             )}
         </div>
@@ -541,9 +531,10 @@ const SecurityCard = ({ token }) => {
                     <input
                         type="password"
                         required
-                        className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white"
+                        className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white transition-colors"
                         value={passData.current}
                         onChange={e => setPassData({ ...passData, current: e.target.value })}
+                        placeholder="••••••••"
                     />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -552,9 +543,10 @@ const SecurityCard = ({ token }) => {
                         <input
                             type="password"
                             required
-                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white"
+                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white transition-colors"
                             value={passData.new}
                             onChange={e => setPassData({ ...passData, new: e.target.value })}
+                            placeholder="Mínimo 6 caracteres"
                         />
                     </div>
                     <div>
@@ -562,9 +554,10 @@ const SecurityCard = ({ token }) => {
                         <input
                             type="password"
                             required
-                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white"
+                            className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white transition-colors"
                             value={passData.confirm}
                             onChange={e => setPassData({ ...passData, confirm: e.target.value })}
+                            placeholder="Repetir contraseña"
                         />
                     </div>
                 </div>
@@ -572,7 +565,7 @@ const SecurityCard = ({ token }) => {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition shadow-lg shadow-indigo-200 dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition shadow-lg shadow-indigo-200 dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 hover:-translate-y-0.5"
                     >
                         {loading ? <RefreshCw className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
                         Actualizar Contraseña
