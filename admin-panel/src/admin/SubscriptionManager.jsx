@@ -4,27 +4,31 @@ import {
     Check, Zap, Building2, Smartphone,
     CreditCard, FileText, ExternalLink, Crown, AlertCircle,
     ArrowRightLeft, Plus, ChevronRight, Package, Shield, PlusCircle,
-    TrendingUp, XCircle, Loader2
+    TrendingUp, XCircle, ArrowDown
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 
+// --- CONFIGURACIÓN DE PLANES BASE ---
+// Ordenados por precio para calcular upgrades/downgrades
 const BASE_PLANS = [
     {
         id: 'price_1SfJpk7Mhd9qo6A8AmFiKTdk',
         name: 'Plan Regular',
+        priceValue: 20, // Para lógica de comparación
         price: '20€',
         limits: { subs: 1, slots: 5 },
-        features: ['1 Agencia', '5 Números incluidos'],
+        features: ['1 Subcuenta', '5 Números incluidos'],
         color: 'bg-blue-600',
         badge: 'Start'
     },
     {
         id: 'price_1SfJqb7Mhd9qo6A8zP0xydlX',
         name: 'Agencia Pro',
+        priceValue: 90,
         price: '90€',
         limits: { subs: 5, slots: 25 },
-        features: ['5 Agencias', '25 Números incluidos', 'Marca Blanca'],
+        features: ['5 Subcuentas', '25 Números incluidos', 'Marca Blanca'],
         color: 'bg-indigo-600',
         recommended: true,
         badge: 'Popular'
@@ -32,30 +36,39 @@ const BASE_PLANS = [
     {
         id: 'price_1SfJrZ7Mhd9qo6A8WOn6BGbJ',
         name: 'Enterprise',
+        priceValue: 200,
         price: '200€',
         limits: { subs: 10, slots: 50 },
-        features: ['10 Agencias', '50 Números incluidos', 'API', 'Descuento VIP'],
+        features: ['10 Subcuentas', '50 Números incluidos', 'API', 'Descuento VIP'],
         color: 'bg-purple-600',
         badge: 'VIP'
     }
 ];
 
+// --- ADD-ONS ---
 const ADDONS = {
-    // ✅ CAMBIO CLAVE: Comprar "Subagencia" es comprar un Plan Regular
+    // ID del Plan Regular (20€) para usuarios normales
     SUB_UNIT_STD: 'price_1SfJpk7Mhd9qo6A8AmFiKTdk',
-    // Si tienes un VIP equivalente, ponlo aquí, si no, usa el mismo
-    SUB_UNIT_VIP: 'price_1SfJpk7Mhd9qo6A8AmFiKTdk',
+    // ID del Pack VIP (10€) para usuarios con >10 agencias
+    // ¡Asegúrate de que este ID exista en tu STRIPE_CONFIG del backend!
+    SUB_UNIT_VIP: 'price_1SfK547Mhd9qo6A8SfvT8GF4',
 
-    SLOT_UNIT_STD: 'price_1SfK787Mhd9qo6A8WmPRs9Zy',
-    SLOT_UNIT_VIP: 'price_1SfK827Mhd9qo6A89iZ68SRi'
+    SLOT_UNIT_STD: 'price_1SfK787Mhd9qo6A8WmPRs9Zy', // 5€
+    SLOT_UNIT_VIP: 'price_1SfK827Mhd9qo6A89iZ68SRi'  // 3€
 };
 
+// --- MAPEO DE DETALLES ---
 const PLAN_DETAILS = {
-    'price_1SfJpk7Mhd9qo6A8AmFiKTdk': { label: '1 Agencia / 5 Slots' },
-    'price_1SfJqb7Mhd9qo6A8zP0xydlX': { label: '5 Agencias / 25 Slots' },
-    'price_1SfJrZ7Mhd9qo6A8WOn6BGbJ': { label: '10 Agencias / 50 Slots' },
+    'price_1SfJpk7Mhd9qo6A8AmFiKTdk': { label: '1 Subcuenta / 5 Slots' },
+    'price_1SfJqb7Mhd9qo6A8zP0xydlX': { label: '5 Subcuentas / 25 Slots' },
+    'price_1SfJrZ7Mhd9qo6A8WOn6BGbJ': { label: '10 Subcuentas / 50 Slots' },
+
+    // VIP IDs
+    'price_1SfK547Mhd9qo6A8SfvT8GF4': { label: '+1 Subcuenta (VIP)' },
+
+    // Slot IDs
     'price_1SfK787Mhd9qo6A8WmPRs9Zy': { label: '+1 Slot Extra' },
-    'price_1SfK827Mhd9qo6A89iZ68SRi': { label: '+1 Slot Extra' }
+    'price_1SfK827Mhd9qo6A89iZ68SRi': { label: '+1 Slot Extra (VIP)' }
 };
 
 export default function SubscriptionManager({ token, accountInfo }) {
@@ -64,13 +77,16 @@ export default function SubscriptionManager({ token, accountInfo }) {
     const [subscriptions, setSubscriptions] = useState([]);
     const [fetching, setFetching] = useState(true);
     const [showPlans, setShowPlans] = useState(false);
-    const [editingSubId, setEditingSubId] = useState(null); // ID de la suscripción que se está modificando
+    const [editingSubId, setEditingSubId] = useState(null);
 
+    // 1. Calcular Volumen
     const totalSubs = accountInfo?.limits?.max_subagencies || 0;
     const hasVolumeDiscount = totalSubs >= 10;
 
+    // 2. Seleccionar Precios Dinámicos
     const subPriceId = hasVolumeDiscount ? ADDONS.SUB_UNIT_VIP : ADDONS.SUB_UNIT_STD;
-    const subDisplayPrice = hasVolumeDiscount ? "10€ (VIP)" : "20€"; // Visual
+    const subDisplayPrice = hasVolumeDiscount ? "10€ (VIP)" : "20€";
+
     const slotPriceId = hasVolumeDiscount ? ADDONS.SLOT_UNIT_VIP : ADDONS.SLOT_UNIT_STD;
     const slotDisplayPrice = hasVolumeDiscount ? "3€ (VIP)" : "5€";
 
@@ -88,7 +104,6 @@ export default function SubscriptionManager({ token, accountInfo }) {
         } catch (e) { } finally { setFetching(false); }
     };
 
-    // Compra NUEVA (Checkout)
     const handlePurchase = async (priceId) => {
         setLoading(true);
         try {
@@ -101,7 +116,6 @@ export default function SubscriptionManager({ token, accountInfo }) {
         } catch (e) { alert("Error conexión"); } finally { setLoading(false); }
     };
 
-    // ✅ MODIFICACIÓN IN-APP
     const handleUpdatePlan = async (subscriptionId, newPriceId) => {
         if (!confirm("¿Confirmar cambio de plan? Se ajustará el cobro inmediatamente.")) return;
         setLoading(true);
@@ -134,7 +148,7 @@ export default function SubscriptionManager({ token, accountInfo }) {
 
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Header y Tabs (Igual) */}
+            {/* Header y Tabs */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-800 pb-4">
                 <div><h2 className="text-2xl font-bold text-gray-900 dark:text-white">Suscripción</h2><p className="text-sm text-gray-500 dark:text-gray-400">Administra tus recursos.</p></div>
                 <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
@@ -171,6 +185,10 @@ export default function SubscriptionManager({ token, accountInfo }) {
                                     const isEditing = editingSubId === sub.stripe_subscription_id;
                                     const isBase = sub.type === 'base';
 
+                                    // Buscar el plan actual para comparar precios
+                                    const currentPlan = BASE_PLANS.find(p => p.id === sub.stripe_price_id);
+                                    const currentPriceVal = currentPlan ? currentPlan.priceValue : 0;
+
                                     return (
                                         <div key={sub.id} className="transition hover:bg-gray-50 dark:hover:bg-gray-800/30">
                                             <div className="p-6 flex flex-col lg:flex-row items-center justify-between gap-6">
@@ -194,7 +212,6 @@ export default function SubscriptionManager({ token, accountInfo }) {
                                                 </div>
 
                                                 <div className="flex gap-3 w-full lg:w-auto justify-end">
-                                                    {/* BOTÓN MODIFICAR (Solo planes base) */}
                                                     {isBase && (
                                                         <button
                                                             onClick={() => setEditingSubId(isEditing ? null : sub.stripe_subscription_id)}
@@ -215,11 +232,14 @@ export default function SubscriptionManager({ token, accountInfo }) {
                                                 <div className="px-6 pb-6 animate-in slide-in-from-top-2 fade-in">
                                                     <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-5 border border-indigo-200 dark:border-indigo-900 shadow-inner">
                                                         <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
-                                                            <TrendingUp size={16} className="text-indigo-600" /> Selecciona el nuevo nivel para esta suscripción:
+                                                            <TrendingUp size={16} className="text-indigo-600" /> Cambiar nivel de suscripción:
                                                         </p>
                                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                             {BASE_PLANS.map(plan => {
                                                                 const isCurrent = plan.id === sub.stripe_price_id;
+                                                                // Si el precio es menor al actual, es Downgrade
+                                                                const isDowngrade = plan.priceValue < currentPriceVal;
+
                                                                 return (
                                                                     <button
                                                                         key={plan.id}
@@ -228,7 +248,11 @@ export default function SubscriptionManager({ token, accountInfo }) {
                                                                         className={`relative p-4 rounded-xl border text-left transition-all group
                                                                         ${isCurrent
                                                                                 ? 'bg-white dark:bg-gray-800 border-indigo-500 ring-2 ring-indigo-500 opacity-80 cursor-default'
-                                                                                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-indigo-400 hover:shadow-md cursor-pointer'
+                                                                                : isDowngrade
+                                                                                    // 🔽 ESTILO DOWNGRADE: Sutil, gris, sin borde fuerte
+                                                                                    ? 'bg-transparent border-transparent hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 grayscale opacity-70 hover:opacity-100'
+                                                                                    // 🔼 ESTILO UPGRADE: Llamativo
+                                                                                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-indigo-400 hover:shadow-md cursor-pointer'
                                                                             }`}
                                                                     >
                                                                         <div className="flex justify-between items-start mb-2">
@@ -237,9 +261,12 @@ export default function SubscriptionManager({ token, accountInfo }) {
                                                                         </div>
                                                                         <div className="text-2xl font-extrabold text-gray-900 dark:text-white mb-1">{plan.price}</div>
                                                                         <div className="text-xs text-gray-500 dark:text-gray-400">{plan.limits.subs} Agencias / {plan.limits.slots} Slots</div>
+
                                                                         {!isCurrent && (
-                                                                            <div className="mt-3 text-xs font-bold text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                                                                Cambiar <ArrowRightLeft size={12} />
+                                                                            <div className={`mt-3 text-xs font-bold transition-opacity flex items-center gap-1
+                                                                                ${isDowngrade ? 'text-gray-400 group-hover:text-gray-600' : 'text-indigo-600 opacity-0 group-hover:opacity-100'}
+                                                                            `}>
+                                                                                {isDowngrade ? <><ArrowDown size={12} /> Reducir Plan</> : <><TrendingUp size={12} /> Mejorar Plan</>}
                                                                             </div>
                                                                         )}
                                                                     </button>
@@ -256,10 +283,13 @@ export default function SubscriptionManager({ token, accountInfo }) {
                         )}
                     </div>
 
-                    {/* CATÁLOGO (Botón "Contratar Nuevo Plan") */}
+                    {/* 2. CATÁLOGO PARA NUEVOS PLANES */}
                     {(showPlans || subscriptions.length === 0) && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Shield size={18} className="text-indigo-500" /> Catálogo de Planes</h3>
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><Shield size={18} className="text-indigo-500" /> Catálogo de Planes</h3>
+                                {subscriptions.length > 0 && <span className="text-sm text-gray-500">Estos planes se sumarán a tu suscripción actual.</span>}
+                            </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 {BASE_PLANS.map((plan) => (
                                     <div key={plan.id} className={`bg-white dark:bg-gray-900 border rounded-2xl p-6 flex flex-col transition-all hover:shadow-xl ${plan.recommended ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200 dark:border-gray-800'}`}>
@@ -272,18 +302,38 @@ export default function SubscriptionManager({ token, accountInfo }) {
                         </div>
                     )}
 
-                    {/* EXTRAS (Subagencia apunta al plan regular) */}
+                    {/* 3. SECCIÓN EXTRAS (Con descuento VIP) */}
                     {subscriptions.length > 0 && (
                         <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-800">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><PlusCircle size={18} className="text-emerald-500" /> Extras</h3>
+                            <div className="flex items-center gap-3">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><PlusCircle size={18} className="text-emerald-500" /> Extras</h3>
+                                {hasVolumeDiscount && (
+                                    <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[10px] font-bold uppercase rounded border border-yellow-200 tracking-wide animate-pulse">
+                                        ⚡ Precios VIP Activos
+                                    </span>
+                                )}
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* SUBAGENCIA EXTRA */}
                                 <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl flex items-center justify-between hover:border-indigo-300 transition group">
-                                    <div className="flex items-center gap-4"><div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl"><Building2 size={24} /></div><div><h4 className="font-bold text-gray-900 dark:text-white">Subagencia Extra</h4><p className="text-xs text-gray-500">+1 Agencia / 5 Slots (Plan Regular)</p></div></div>
-                                    <div className="text-right"><p className="text-xl font-bold text-gray-900 dark:text-white">{subDisplayPrice}</p><button onClick={() => handlePurchase(subPriceId)} className="text-sm font-bold text-indigo-600 hover:underline">Añadir</button></div>
+                                    <div className="flex items-center gap-4"><div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl"><Building2 size={24} /></div><div><h4 className="font-bold text-gray-900 dark:text-white">Subagencia Extra</h4><p className="text-xs text-gray-500">+1 Agencia / 5 Slots {hasVolumeDiscount ? '(VIP Pack)' : '(Regular)'}</p></div></div>
+                                    <div className="text-right">
+                                        {/* Precio tachado si hay descuento */}
+                                        {hasVolumeDiscount && <span className="block text-xs text-gray-400 line-through">20€</span>}
+                                        <p className="text-xl font-bold text-gray-900 dark:text-white">{subDisplayPrice}</p>
+                                        <button onClick={() => handlePurchase(subPriceId)} className="text-sm font-bold text-indigo-600 hover:underline">Añadir</button>
+                                    </div>
                                 </div>
+
+                                {/* SLOT EXTRA */}
                                 <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-2xl flex items-center justify-between hover:border-emerald-300 transition group">
                                     <div className="flex items-center gap-4"><div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-xl"><Smartphone size={24} /></div><div><h4 className="font-bold text-gray-900 dark:text-white">Slot Extra</h4><p className="text-xs text-gray-500">+1 Número WhatsApp</p></div></div>
-                                    <div className="text-right"><p className="text-xl font-bold text-gray-900 dark:text-white">{slotDisplayPrice}</p><button onClick={() => handlePurchase(slotPriceId)} className="text-sm font-bold text-emerald-600 hover:underline">Añadir</button></div>
+                                    <div className="text-right">
+                                        {hasVolumeDiscount && <span className="block text-xs text-gray-400 line-through">5€</span>}
+                                        <p className="text-xl font-bold text-gray-900 dark:text-white">{slotDisplayPrice}</p>
+                                        <button onClick={() => handlePurchase(slotPriceId)} className="text-sm font-bold text-emerald-600 hover:underline">Añadir</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
