@@ -74,7 +74,7 @@ export default function AgencyDashboard({ token, onLogout }) {
     // ✅ ESTA ES LA CLAVE: Una función que recarga TODO
     const refreshData = async () => {
         if (!AGENCY_ID) { setLoading(false); return; }
-        // setLoading(true); // Opcional: Si quieres spinner global cada vez, descomenta. Si no, es "silencioso".
+        setLoading(true); // Opcional: Si quieres spinner global cada vez, descomenta. Si no, es "silencioso".
 
         try {
             const [locRes, accRes] = await Promise.all([

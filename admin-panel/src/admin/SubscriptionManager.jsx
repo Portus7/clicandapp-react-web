@@ -148,6 +148,56 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
         } catch (e) { alert("Error"); } finally { setLoading(false); }
     };
 
+    const handleCancelClick = async (subId) => {
+        const tId = toast.loading("Verificando vinculaciones...");
+        try {
+            // 1. Verificar qué se va a borrar
+            const res = await fetch(`${API_URL}/payments/preview-cancel?subscriptionId=${subId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            toast.dismiss(tId);
+
+            let confirmMsg = "¿Estás seguro de cancelar este plan?";
+
+            if (data.affected && data.affected.length > 0) {
+                confirmMsg += "\n\n⚠️ ALERTA: Al cancelar, se desconectarán las siguientes subcuentas y sus números:\n";
+                data.affected.forEach(aff => {
+                    confirmMsg += `\n• ${aff.name}`;
+                    if (aff.numbers.length > 0) {
+                        confirmMsg += ` (Nums: ${aff.numbers.join(", ")})`;
+                    } else {
+                        confirmMsg += ` (Sin números activos)`;
+                    }
+                });
+            } else {
+                confirmMsg += "\n\n(No hay subcuentas vinculadas directamente a este plan específico)";
+            }
+
+            // 2. Pedir confirmación
+            if (!confirm(confirmMsg)) return;
+
+            // 3. Ejecutar Cancelación
+            const cancelId = toast.loading("Procesando baja...");
+            const cancelRes = await fetch(`${API_URL}/payments/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ subscriptionId: subId })
+            });
+
+            if (cancelRes.ok) {
+                toast.success("Suscripción cancelada correctamente", { id: cancelId });
+                fetchSubscriptions();
+                if (onDataChange) onDataChange();
+            } else {
+                throw new Error("Error al cancelar");
+            }
+
+        } catch (e) {
+            toast.error("Error: " + e.message);
+        }
+    };
+
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header y Tabs */}
@@ -223,7 +273,10 @@ export default function SubscriptionManager({ token, accountInfo, onDataChange }
                                                             {isEditing ? <><XCircle size={14} /> Cerrar</> : <><ArrowRightLeft size={14} /> Modificar</>}
                                                         </button>
                                                     )}
-                                                    <button onClick={handlePortal} className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900 rounded-lg transition">
+                                                    <button
+                                                        onClick={() => handleCancelClick(sub.stripe_subscription_id)} // 🔥 USAR LA NUEVA FUNCIÓN
+                                                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-red-600 ..."
+                                                    >
                                                         <XCircle size={14} /> Cancelar
                                                     </button>
                                                 </div>
