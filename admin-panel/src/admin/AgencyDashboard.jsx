@@ -14,7 +14,7 @@ import {
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 const INSTALL_APP_URL = import.meta.env.INSTALL_APP_URL || "https://gestion.clicandapp.com/integration/691623d58a49cdcb2c56ce9c";
-const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE;
+const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE || "595984756159";
 
 export default function AgencyDashboard({ token, onLogout }) {
     const [storedAgencyId, setStoredAgencyId] = useState(localStorage.getItem("agencyId"));

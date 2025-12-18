@@ -7,8 +7,7 @@ import {
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 
-// 👇 AQUÍ ESTABA EL ERROR: Faltaba agregar 'onUpgrade' en las props
-export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade }) {
+export default function LocationDetailsModal({ location, onClose, token, onLogout, onUpgrade, onDataChange }) {
     const [slots, setSlots] = useState([]);
     const [keywords, setKeywords] = useState([]);
     const [ghlUsers, setGhlUsers] = useState([]);

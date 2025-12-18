@@ -71,7 +71,7 @@ const PLAN_DETAILS = {
     'price_1SfK827Mhd9qo6A89iZ68SRi': { label: '+1 Slot Extra (VIP)' }
 };
 
-export default function SubscriptionManager({ token, accountInfo }) {
+export default function SubscriptionManager({ token, accountInfo, onDataChange }) {
     const [activeTab, setActiveTab] = useState('services');
     const [loading, setLoading] = useState(false);
     const [subscriptions, setSubscriptions] = useState([]);
