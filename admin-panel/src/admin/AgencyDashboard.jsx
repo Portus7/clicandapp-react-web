@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import LocationDetailsModal from './LocationDetailsModal';
-import SubscriptionManager from './SubscriptionManager'; // ✅ NUEVO IMPORT
+import SubscriptionManager from './SubscriptionManager';
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
 import {
@@ -14,7 +14,7 @@ import {
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 const INSTALL_APP_URL = import.meta.env.INSTALL_APP_URL || "https://gestion.clicandapp.com/integration/691623d58a49cdcb2c56ce9c";
-const SUPPORT_PHONE = "595984756159";
+const SUPPORT_PHONE = import.meta.env.SUPPORT_PHONE;
 
 export default function AgencyDashboard({ token, onLogout }) {
     const [storedAgencyId, setStoredAgencyId] = useState(localStorage.getItem("agencyId"));
@@ -31,8 +31,6 @@ export default function AgencyDashboard({ token, onLogout }) {
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isAutoSyncing, setIsAutoSyncing] = useState(false);
-
-    // ❌ Eliminado: const [showSubModal, setShowSubModal] = useState(false); 
 
     const [accountInfo, setAccountInfo] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
@@ -68,32 +66,35 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     useEffect(() => {
         if (AGENCY_ID) {
-            fetchLocations();
-            fetchAccountInfo();
+            refreshData(); // 🔥 Usamos la función unificada
         }
     }, [AGENCY_ID]);
 
     // --- FUNCIONES DE CARGA ---
-    const fetchLocations = () => {
+    // ✅ ESTA ES LA CLAVE: Una función que recarga TODO
+    const refreshData = async () => {
         if (!AGENCY_ID) { setLoading(false); return; }
-        setLoading(true);
-        authFetch(`/agency/locations?agencyId=${AGENCY_ID}`)
-            .then(r => r.json())
-            .then(data => {
-                if (Array.isArray(data)) setLocations(data);
-                setLoading(false);
-            })
-            .catch(() => setLoading(false));
-    };
+        // setLoading(true); // Opcional: Si quieres spinner global cada vez, descomenta. Si no, es "silencioso".
 
-    const fetchAccountInfo = async () => {
         try {
-            const res = await authFetch('/agency/info');
-            if (res.ok) {
-                const data = await res.json();
+            const [locRes, accRes] = await Promise.all([
+                authFetch(`/agency/locations?agencyId=${AGENCY_ID}`),
+                authFetch('/agency/info')
+            ]);
+
+            if (locRes.ok) {
+                const data = await locRes.json();
+                if (Array.isArray(data)) setLocations(data);
+            }
+            if (accRes.ok) {
+                const data = await accRes.json();
                 setAccountInfo(data);
             }
-        } catch (e) { console.error("Error info cuenta", e); }
+        } catch (error) {
+            console.error("Error refrescando datos", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const autoSyncAgency = async (locationId) => {
@@ -119,7 +120,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         );
         setTimeout(() => {
             setIsAutoSyncing(false);
-            if (AGENCY_ID) { fetchLocations(); fetchAccountInfo(); }
+            if (AGENCY_ID) refreshData();
         }, 1000);
     };
 
@@ -133,8 +134,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             const res = await authFetch(`/agency/tenants/${locationId}`, { method: 'DELETE' });
             if (res.ok) {
                 toast.success("Subcuenta eliminada");
-                fetchLocations();
-                fetchAccountInfo();
+                refreshData(); // 🔥 Recarga inmediata
             } else {
                 throw new Error("Error al eliminar");
             }
@@ -326,12 +326,13 @@ export default function AgencyDashboard({ token, onLogout }) {
                                                 onChange={e => setSearchTerm(e.target.value)}
                                             />
                                         </div>
-                                        <button onClick={fetchLocations} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition"><RefreshCw size={18} className={loading ? "animate-spin" : ""} /></button>
+                                        {/* 🔥 BOTÓN DE RECARGA MANUAL AHORA USA refreshData */}
+                                        <button onClick={refreshData} className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition"><RefreshCw size={18} className={loading ? "animate-spin" : ""} /></button>
                                         <button onClick={handleInstallApp} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2 text-sm shadow-lg shadow-indigo-200 dark:shadow-none whitespace-nowrap"><Plus size={18} /> Nueva</button>
                                     </div>
                                 </div>
 
-                                {loading ? (
+                                {loading && locations.length === 0 ? (
                                     <div className="py-20 text-center text-gray-400">Cargando datos...</div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -420,7 +421,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                                             <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5">Email Registrado</label>
                                             <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700">
                                                 <Mail size={16} className="text-gray-400" />
-                                                <span className="text-gray-900 dark:text-white font-medium">{userEmail || 'Cargando...'}</span>
+                                                <span className="font-mono text-gray-900 dark:text-white font-medium">{userEmail || 'Cargando...'}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -453,9 +454,14 @@ export default function AgencyDashboard({ token, onLogout }) {
                         </div>
                     )}
 
-                    {/* --- VISTA 3: FACTURACIÓN / SUSCRIPCIÓN (NUEVO COMPONENTE) --- */}
+                    {/* --- VISTA 3: FACTURACIÓN / SUSCRIPCIÓN --- */}
                     {activeTab === 'billing' && (
-                        <SubscriptionManager token={token} accountInfo={accountInfo} />
+                        // 🔥 LE PASAMOS refreshData AL HIJO PARA QUE ACTUALICE LA UI AL CAMBIAR PLANES
+                        <SubscriptionManager
+                            token={token}
+                            accountInfo={accountInfo}
+                            onDataChange={refreshData}
+                        />
                     )}
                 </main>
             </div>
@@ -468,6 +474,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                     onLogout={onLogout}
                     onClose={() => setSelectedLocation(null)}
                     onUpgrade={() => setActiveTab('billing')}
+                    onDataChange={refreshData} // 🔥 TAMBIÉN AQUÍ PARA ACTUALIZAR CONTADOR DE SLOTS
                 />
             )}
         </div>

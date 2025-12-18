@@ -131,7 +131,8 @@ export default function SubscriptionManager({ token, accountInfo }) {
             if (res.ok) {
                 toast.success("Plan actualizado", { id: tId });
                 setEditingSubId(null);
-                fetchSubscriptions();
+                fetchSubscriptions(); // Recarga la lista local
+                if (onDataChange) onDataChange(); // Recarga los límites del dashboard
             } else {
                 toast.error("Error: " + data.error, { id: tId });
             }

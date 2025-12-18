@@ -100,6 +100,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             if (res.ok) {
                 toast.success("Dispositivo agregado", { description: "Listo para vincular." });
                 loadData();
+                if (onDataChange) onDataChange();
             } else if (res.status === 403) {
                 toast.error("Límite Alcanzado", {
                     description: "Has llegado al máximo de dispositivos de tu plan.",
