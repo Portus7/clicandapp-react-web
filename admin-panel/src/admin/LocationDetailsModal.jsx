@@ -11,6 +11,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [slots, setSlots] = useState([]);
     const [keywords, setKeywords] = useState([]);
     const [ghlUsers, setGhlUsers] = useState([]);
+    const [locationName, setLocationName] = useState(location.name || "");
     const [loading, setLoading] = useState(true);
 
     // Control de UI
@@ -71,6 +72,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 const data = await detailsRes.json();
                 setSlots(data.slots || []);
                 setKeywords(data.keywords || []);
+
+                if (data.name) setLocationName(data.name);
             }
 
             if (usersRes && usersRes.ok) {
@@ -296,7 +299,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                             <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
                                 <Smartphone size={24} />
                             </div>
-                            {location.name || location.location_id}
+                            {locationName || location.location_id}
                         </h2>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 ml-14">Gestión avanzada de dispositivos y reglas.</p>
                     </div>
