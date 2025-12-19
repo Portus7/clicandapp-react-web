@@ -84,7 +84,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
         // Usamos un toast persistente para informar del estado
         const toastId = toast.loading('Sincronizando con GoHighLevel...', {
-            description: 'Esperando confirmación de instalación. Esto puede tomar unos momentos...'
+            description: 'Esperando confirmación de instalación. Esto puede tomar unos minutos...'
         });
 
         try {
@@ -108,7 +108,7 @@ export default function AgencyDashboard({ token, onLogout }) {
             // Intentaremos buscar la subcuenta en la lista durante 60 segundos (30 intentos x 2s)
             let found = false;
             let retries = 0;
-            const maxRetries = 30;
+            const maxRetries = 5;
 
             while (retries < maxRetries) {
                 // Consultamos las subcuentas actuales
@@ -139,7 +139,7 @@ export default function AgencyDashboard({ token, onLogout }) {
                 // Si pasaron 60 segundos y no llegó el webhook
                 toast.warning('Instalación en proceso', {
                     id: toastId,
-                    description: 'GoHighLevel está tardando en enviar los datos. La subcuenta aparecerá automáticamente en unos minutos.',
+                    description: 'Vinculacion exitoso, si no visualiza las subcuentas, espere un momento y dele a actualizar.',
                     duration: 8000
                 });
             }
