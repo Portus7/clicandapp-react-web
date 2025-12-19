@@ -137,9 +137,9 @@ export default function AgencyDashboard({ token, onLogout }) {
                 toast.success('¡Vinculación exitosa!', { id: toastId, description: 'La subcuenta se ha instalado correctamente.' });
             } else {
                 // Si pasaron 60 segundos y no llegó el webhook
-                toast.warning('Instalación en proceso', {
+                toast.warning('Instalación exitosa!', {
                     id: toastId,
-                    description: 'Vinculacion exitoso, si no visualiza las subcuentas, espere un momento y dele a actualizar.',
+                    description: 'Vinculación exitosa, si no visualiza las subcuentas, espere un momento y de click en actualizar.',
                     duration: 8000
                 });
             }
