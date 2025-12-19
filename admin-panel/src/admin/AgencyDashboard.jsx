@@ -53,24 +53,7 @@ export default function AgencyDashboard({ token, onLogout }) {
         return res;
     };
 
-    // --- EFECTOS DE INICIO ---
-    useEffect(() => {
-        const newInstallId = queryParams.get("new_install");
-        if (newInstallId && !isAutoSyncing) autoSyncAgency(newInstallId);
-
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            setUserEmail(payload.email);
-        } catch (e) { }
-    }, []);
-
-    useEffect(() => {
-        if (AGENCY_ID) {
-            refreshData(); // 🔥 Usamos la función unificada
-        }
-    }, [AGENCY_ID]);
-
-    // --- FUNCIONES DE CARGA ---
+    // --- FUNCIONES DE CARGA (MOVIDAS ARRIBA PARA EVITAR HOISTING ERROR) ---
     const refreshData = async () => {
         if (!AGENCY_ID) { setLoading(false); return; }
         setLoading(true);
@@ -122,6 +105,23 @@ export default function AgencyDashboard({ token, onLogout }) {
             if (AGENCY_ID) refreshData();
         }, 1000);
     };
+
+    // --- EFECTOS DE INICIO ---
+    useEffect(() => {
+        const newInstallId = queryParams.get("new_install");
+        if (newInstallId && !isAutoSyncing) autoSyncAgency(newInstallId);
+
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            setUserEmail(payload.email);
+        } catch (e) { }
+    }, []);
+
+    useEffect(() => {
+        if (AGENCY_ID) {
+            refreshData(); // 🔥 Usamos la función unificada
+        }
+    }, [AGENCY_ID]);
 
     const handleDeleteTenant = async (e, locationId, name) => {
         e.stopPropagation();
