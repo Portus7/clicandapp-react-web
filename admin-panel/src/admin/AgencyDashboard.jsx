@@ -80,30 +80,83 @@ export default function AgencyDashboard({ token, onLogout }) {
     };
 
     const autoSyncAgency = async (locationId) => {
-        setIsAutoSyncing(true);
-        toast.promise(
-            (async () => {
+        setIsAutoSyncing(true); // Activa la pantalla de carga completa
+
+        // Usamos un toast persistente para informar del estado
+        const toastId = toast.loading('Sincronizando con GoHighLevel...', {
+            description: 'Esperando confirmación de instalación. Esto puede tomar unos momentos...'
+        });
+
+        try {
+            // 1. Retraso inicial de seguridad (a veces GHL tarda un segundo en despertar)
+            await new Promise(r => setTimeout(r, 2000));
+
+            // 2. Vincular usuario (Esto actualiza el agency_id en la tabla users)
+            const res = await authFetch(`/agency/sync-ghl`, {
+                method: "POST",
+                body: JSON.stringify({ locationIdToVerify: locationId })
+            });
+            const data = await res.json();
+
+            if (!data.success || !data.newAgencyId) throw new Error("Fallo al verificar credenciales.");
+
+            // Guardamos la nueva agencia
+            localStorage.setItem("agencyId", data.newAgencyId);
+            setStoredAgencyId(data.newAgencyId);
+
+            // 3. POLLING (Bucle de espera activa)
+            // Intentaremos buscar la subcuenta en la lista durante 60 segundos (30 intentos x 2s)
+            let found = false;
+            let retries = 0;
+            const maxRetries = 30;
+
+            while (retries < maxRetries) {
+                // Consultamos las subcuentas actuales
+                const locRes = await authFetch(`/agency/locations?agencyId=${data.newAgencyId}`);
+
+                if (locRes.ok) {
+                    const locationsData = await locRes.json();
+
+                    // Verificamos si la location_id que acabamos de instalar ya aparece en la lista
+                    const exists = Array.isArray(locationsData) && locationsData.find(l => l.location_id === locationId);
+
+                    if (exists) {
+                        found = true;
+                        setLocations(locationsData); // Ya tenemos los datos, los guardamos
+                        break; // ¡Encontrado! Salimos del bucle
+                    }
+                }
+
+                // Si no está, esperamos 2 segundos y volvemos a intentar
                 await new Promise(r => setTimeout(r, 2000));
-                const res = await authFetch(`/agency/sync-ghl`, { method: "POST", body: JSON.stringify({ locationIdToVerify: locationId }) });
-                const data = await res.json();
-                if (!data.success || !data.newAgencyId) throw new Error("Fallo al verificar.");
-                return data;
-            })(),
-            {
-                loading: 'Vinculando cuenta...',
-                success: (data) => {
-                    localStorage.setItem("agencyId", data.newAgencyId);
-                    setStoredAgencyId(data.newAgencyId);
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                    return '¡Vinculación exitosa!';
-                },
-                error: 'Error de verificación.'
+                retries++;
             }
-        );
-        setTimeout(() => {
+
+            // 4. Resultado final
+            if (found) {
+                toast.success('¡Vinculación exitosa!', { id: toastId, description: 'La subcuenta se ha instalado correctamente.' });
+            } else {
+                // Si pasaron 60 segundos y no llegó el webhook
+                toast.warning('Instalación en proceso', {
+                    id: toastId,
+                    description: 'GoHighLevel está tardando en enviar los datos. La subcuenta aparecerá automáticamente en unos minutos.',
+                    duration: 8000
+                });
+            }
+
+            // Limpiamos la URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+
+            // Refrescamos datos generales (Account Info, etc)
+            if (data.newAgencyId) refreshData();
+
+        } catch (error) {
+            console.error("AutoSync Error:", error);
+            toast.error('Error de verificación.', { id: toastId });
+        } finally {
+            // Quitamos la pantalla de carga global
             setIsAutoSyncing(false);
-            if (AGENCY_ID) refreshData();
-        }, 1000);
+        }
     };
 
     // --- EFECTOS DE INICIO ---
