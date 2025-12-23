@@ -4,7 +4,7 @@ import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
     RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2
 } from 'lucide-react';
-import { useSocket } from '../hooks/useSocket'; // ✅ NUEVO: Importar Hook de Socket
+import { useSocket } from '../hooks/useSocket'; // ✅ Importar Hook de Socket
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 
@@ -22,7 +22,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [loadingGroups, setLoadingGroups] = useState(false);
     const [deletingSlotId, setDeletingSlotId] = useState(null);
 
-    // ✅ NUEVO: Obtener instancia del socket
+    // ✅ Obtener instancia del socket
     const socket = useSocket();
 
     const authFetch = async (endpoint, options = {}) => {
@@ -35,50 +35,50 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             }
         });
 
-        // 🔥 CORRECCIÓN: Manejo de 401 y 403
         if (res.status === 401 || res.status === 403) {
             onLogout();
-            onClose(); // Cerramos el modal para evitar errores visuales
+            onClose();
             return null;
         }
         return res;
     };
 
-    // ✅ LÓGICA DE TIEMPO REAL (Reemplaza al Polling)
+    // ✅ LÓGICA DE TIEMPO REAL + ROOMS
     useEffect(() => {
         loadData(); // Carga inicial
 
-        // Función para manejar eventos entrantes
+        // 1. Unirse a la sala (Room) de esta ubicación
+        // Esto es CRÍTICO para recibir eventos ahora que el backend usa io.to()
+        if (socket && location.location_id) {
+            console.log(`🔌 Uniéndose a sala: ${location.location_id}`);
+            socket.emit('join_room', location.location_id);
+        }
+
+        // 2. Manejar eventos entrantes
         const handleEvent = (payload) => {
-            // Solo actuar si el evento pertenece a ESTA ubicación
+            // Doble verificación: aunque el backend filtre, aseguramos que sea para nosotros
             if (payload.locationId === location.location_id) {
-                // Si es un evento de conexión (open/close) o llega un QR, recargamos los datos
                 if (payload.type === 'connection' || payload.type === 'qr') {
-                    // Opcional: Podrías hacer un fetch más ligero solo de slots, 
-                    // pero loadData() es seguro y garantiza consistencia total.
                     loadData();
                 }
             }
         };
 
-        // Suscribirse al evento
         if (socket) {
             socket.on('wa_event', handleEvent);
         }
 
-        // Limpieza al desmontar
         return () => {
             if (socket) {
                 socket.off('wa_event', handleEvent);
+                // No es estrictamente necesario emitir 'leave_room' si el socket se desconecta,
+                // pero al desmontar el componente dejamos de escuchar.
             }
         };
     }, [location, socket]);
 
     const loadData = async () => {
-        // No ponemos setLoading(true) aquí para evitar parpadeos en actualizaciones de socket
-        // Solo lo usamos si es la primera carga y no tenemos datos
         if (slots.length === 0) setLoading(true);
-
         try {
             const [detailsRes, usersRes] = await Promise.all([
                 authFetch(`/agency/location-details/${location.location_id}`),
@@ -99,7 +99,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             }
         } catch (e) {
             console.error("Error cargando datos:", e);
-            // No mostramos toast de error en recargas automáticas para no molestar
             if (slots.length === 0) toast.error("Error cargando datos", { description: "Verifica tu conexión." });
         } finally {
             setLoading(false);
@@ -130,8 +129,8 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                     action: {
                         label: 'Ampliar Plan',
                         onClick: () => {
-                            onClose(); // Cerramos este modal
-                            if (onUpgrade) onUpgrade(); // Abrimos el de suscripción
+                            onClose();
+                            if (onUpgrade) onUpgrade();
                         }
                     }
                 });
@@ -167,10 +166,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
 
     const toggleFavorite = async (slotId, currentState) => {
         const newState = !currentState;
-        // Optimistic UI
         setSlots(prev => prev.map(s => {
             if (s.slot_id === slotId) return { ...s, is_favorite: newState };
-            if (newState) return { ...s, is_favorite: false }; // Solo un favorito
+            if (newState) return { ...s, is_favorite: false };
             return s;
         }));
 
@@ -181,7 +179,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
             });
             if (newState) toast.success("Marcado como Favorito ⭐");
         } catch (e) {
-            loadData(); // Revertir si falla
+            loadData();
             toast.error("Error al actualizar favorito");
         }
     };
@@ -218,7 +216,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 body: JSON.stringify({ locationId: location.location_id, slotId, priority: parseInt(newPriority) })
             });
             toast.success("Prioridad actualizada");
-            loadData(); // Recargar para reordenar
+            loadData();
         } catch (e) { toast.error("Error al cambiar prioridad"); }
     };
 
@@ -407,7 +405,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                 </div>
 
                                                 <div className="p-8">
-                                                    {/* GENERAL */}
+                                                    {/* CONFIG PANELS */}
                                                     {activeSlotTab === 'general' && (
                                                         <div className="max-w-2xl">
                                                             <div className="mb-8">
@@ -430,7 +428,7 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
-                                                    {/* GHL */}
+                                                    {/* OTHER PANELS (GHL, Keywords, Groups) same as before... */}
                                                     {activeSlotTab === 'ghl' && (
                                                         <div className="max-w-2xl space-y-6">
                                                             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -452,7 +450,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
-                                                    {/* KEYWORDS */}
                                                     {activeSlotTab === 'keywords' && (
                                                         <div className="max-w-2xl">
                                                             <form onSubmit={(e) => handleAddKeyword(e, slot.slot_id)} className="flex gap-3 mb-6">
@@ -471,7 +468,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                                                         </div>
                                                     )}
 
-                                                    {/* GRUPOS */}
                                                     {activeSlotTab === 'groups' && (
                                                         <div className="max-w-2xl">
                                                             <div className="flex justify-between items-center mb-6">
@@ -513,7 +509,6 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     );
 }
 
-// Subcomponentes
 const TabButton = ({ active, onClick, icon, label, disabled }) => (
     <button onClick={onClick} disabled={disabled} className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-colors ${active ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
         {icon} {label}
@@ -521,19 +516,11 @@ const TabButton = ({ active, onClick, icon, label, disabled }) => (
 );
 
 const SettingRow = ({ label, desc, checked, onChange }) => (
-    <div
-        className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer"
-        onClick={onChange}
-    >
+    <div className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer" onClick={onChange}>
         <div>
-            {/* CORRECCIÓN: Agregado dark:text-gray-200 para que se vea blanco en modo oscuro */}
             <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{label}</p>
-
-            {/* CORRECCIÓN: Agregado dark:text-gray-400 para la descripción */}
             <p className="text-xs text-gray-500 dark:text-gray-400">{desc}</p>
         </div>
-
-        {/* Switch Toggle */}
         <div className={`w-10 h-6 flex items-center rounded-full p-1 transition-colors ${checked ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}>
             <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`}></div>
         </div>

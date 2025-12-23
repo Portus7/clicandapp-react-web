@@ -39,22 +39,29 @@ export default function SupportManager({ token }) {
         } catch (e) { console.error("Error checking support status:", e); }
     };
 
-    // ✅ EFECTO: Escuchar eventos de WebSocket (Reemplaza al intervalo)
+    // ✅ EFECTO: Escuchar eventos de WebSocket (Con Rooms)
     useEffect(() => {
         checkStatus(); // Carga inicial
 
+        // 1. Unirse a la sala de soporte
+        // El backend ahora requiere estar en la sala '__SYSTEM_SUPPORT__' para recibir estos eventos
+        if (socket) {
+            // console.log("🔌 Uniéndose a sala de soporte: __SYSTEM_SUPPORT__");
+            socket.emit('join_room', '__SYSTEM_SUPPORT__');
+        }
+
+        // 2. Manejar eventos
         const handleEvent = (payload) => {
             // Filtramos solo eventos del sistema de soporte
-            // El ID '__SYSTEM_SUPPORT__' debe coincidir con el definido en tu backend
             if (payload.locationId === '__SYSTEM_SUPPORT__') {
 
-                // 1. Llegada de QR
+                // A. Llegada de QR
                 if (payload.type === 'qr') {
                     setQr(payload.data);
                     setLoading(false); // Ya llegó el QR, quitamos spinner
                 }
 
-                // 2. Cambio de Conexión (Conectado o Desconectado)
+                // B. Cambio de Conexión (Conectado o Desconectado)
                 if (payload.type === 'connection') {
                     checkStatus(); // Refrescamos la info completa (número, etc)
                     if (payload.status === 'open') {
@@ -72,6 +79,7 @@ export default function SupportManager({ token }) {
         return () => {
             if (socket) {
                 socket.off('wa_event', handleEvent);
+                // No es necesario salirse explícitamente, pero dejamos de escuchar
             }
         };
     }, [socket]);
