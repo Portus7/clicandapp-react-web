@@ -46,15 +46,16 @@ export default function AgencyDashboard({ token, onLogout }) {
             }
         });
 
-        // 🔥 CORRECCIÓN: Agregamos "|| res.status === 403"
-        // Esto detecta tanto sesión perdida (401) como token expirado (403)
+        // ✅ CORRECCIÓN 1: Manejo de 403 (Token Expirado)
+        // Si el token es inválido o expiró, cerramos sesión inmediatamente
         if (res.status === 401 || res.status === 403) {
-            onLogout(); // Esto limpia el localStorage y te manda al login
+            onLogout();
             throw new Error("Sesión expirada");
         }
         return res;
     };
-    // --- FUNCIONES DE CARGA (MOVIDAS ARRIBA PARA EVITAR HOISTING ERROR) ---
+
+    // --- FUNCIONES DE CARGA ---
     const refreshData = async () => {
         if (!AGENCY_ID) { setLoading(false); return; }
         setLoading(true);
@@ -82,80 +83,95 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     const autoSyncAgency = async (locationId) => {
         setIsAutoSyncing(true); // Activa la pantalla de carga completa
-
-        // Usamos un toast persistente para informar del estado
-        const toastId = toast.loading('Sincronizando con GoHighLevel...', {
-            description: 'Esperando confirmación de instalación. Esto puede tomar unos minutos...'
+        const toastId = toast.loading('Finalizando instalación...', {
+            description: 'Vinculando tu cuenta de GoHighLevel...'
         });
 
         try {
-            // 1. Retraso inicial de seguridad (a veces GHL tarda un segundo en despertar)
-            await new Promise(r => setTimeout(r, 2000));
+            // ✅ CORRECCIÓN 2: Reintentos Inteligentes (Polling para Sync)
+            // Esperamos a que el webhook del backend termine de guardar el tenant
+            let data;
+            let attempts = 0;
+            const maxAttempts = 10; // Intentaremos por 20 segundos (10 x 2s)
 
-            // 2. Vincular usuario (Esto actualiza el agency_id en la tabla users)
-            const res = await authFetch(`/agency/sync-ghl`, {
-                method: "POST",
-                body: JSON.stringify({ locationIdToVerify: locationId })
-            });
-            const data = await res.json();
+            while (attempts < maxAttempts) {
+                try {
+                    // Esperamos 2 segundos entre intentos
+                    await new Promise(r => setTimeout(r, 2000));
 
-            if (!data.success || !data.newAgencyId) throw new Error("Fallo al verificar credenciales.");
+                    // Intentamos vincular (el backend verificará si el tenant ya existe)
+                    const res = await authFetch(`/agency/sync-ghl`, {
+                        method: "POST",
+                        body: JSON.stringify({ locationIdToVerify: locationId })
+                    });
+
+                    if (res.ok) {
+                        data = await res.json();
+                        break; // ¡Éxito! Salimos del bucle
+                    }
+
+                    // Si responde 404, significa que el webhook aun no termina. Seguimos intentando.
+                    if (res.status === 404) {
+                        console.log(`⏳ Intento ${attempts + 1}: Webhook aún procesando...`);
+                        attempts++;
+                    } else {
+                        throw new Error("Error de servidor");
+                    }
+                } catch (e) {
+                    attempts++; // Errores de red, seguimos intentando
+                }
+            }
+
+            if (!data || !data.success) {
+                throw new Error("El tiempo de espera de instalación se agotó. Por favor actualiza la página.");
+            }
+
+            // --- INSTALACIÓN EXITOSA ---
 
             // Guardamos la nueva agencia
             localStorage.setItem("agencyId", data.newAgencyId);
             setStoredAgencyId(data.newAgencyId);
 
-            // 3. POLLING (Bucle de espera activa)
-            // Intentaremos buscar la subcuenta en la lista durante 60 segundos (30 intentos x 2s)
+            // 3. POLLING FINAL (Verificar visibilidad en lista)
+            // Aunque ya vinculamos, esperamos a que aparezca en el endpoint de locations
             let found = false;
-            let retries = 0;
-            const maxRetries = 5;
+            let retriesLoc = 0;
+            const maxRetriesLoc = 5;
 
-            while (retries < maxRetries) {
-                // Consultamos las subcuentas actuales
+            while (retriesLoc < maxRetriesLoc) {
                 const locRes = await authFetch(`/agency/locations?agencyId=${data.newAgencyId}`);
-
                 if (locRes.ok) {
                     const locationsData = await locRes.json();
-
-                    // Verificamos si la location_id que acabamos de instalar ya aparece en la lista
                     const exists = Array.isArray(locationsData) && locationsData.find(l => l.location_id === locationId);
-
                     if (exists) {
                         found = true;
-                        setLocations(locationsData); // Ya tenemos los datos, los guardamos
-                        break; // ¡Encontrado! Salimos del bucle
+                        setLocations(locationsData);
+                        break;
                     }
                 }
-
-                // Si no está, esperamos 2 segundos y volvemos a intentar
                 await new Promise(r => setTimeout(r, 2000));
-                retries++;
+                retriesLoc++;
             }
 
             // 4. Resultado final
             if (found) {
-                toast.success('¡Vinculación exitosa!', { id: toastId, description: 'La subcuenta se ha instalado correctamente.' });
+                toast.success('¡Instalación completada!', { id: toastId, description: 'La subcuenta está lista.' });
             } else {
-                // Si pasaron 60 segundos y no llegó el webhook
-                toast.warning('Instalación exitosa!', {
+                toast.warning('Instalación exitosa', {
                     id: toastId,
-                    description: 'Vinculación exitosa, si no visualiza las subcuentas, espere un momento y de click en actualizar.',
+                    description: 'Vinculación correcta, pero la lista tarda en actualizarse. Presiona el botón de recargar.',
                     duration: 8000
                 });
             }
 
-            // Limpiamos la URL
+            // Limpiamos la URL y recargamos todo
             window.history.replaceState({}, document.title, window.location.pathname);
-
-            // Refrescamos datos generales (Account Info, etc)
             if (data.newAgencyId) refreshData();
 
         } catch (error) {
             console.error("AutoSync Error:", error);
-            toast.error('Error de verificación.', { id: toastId });
+            toast.error(error.message || 'Error de verificación.', { id: toastId });
         } finally {
-            // Quitamos la pantalla de carga global
             setIsAutoSyncing(false);
         }
     };
@@ -173,7 +189,7 @@ export default function AgencyDashboard({ token, onLogout }) {
 
     useEffect(() => {
         if (AGENCY_ID) {
-            refreshData(); // 🔥 Usamos la función unificada
+            refreshData();
         }
     }, [AGENCY_ID]);
 
