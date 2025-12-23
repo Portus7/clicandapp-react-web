@@ -34,9 +34,11 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 'Authorization': `Bearer ${token}`
             }
         });
-        if (res.status === 401) {
+
+        // 🔥 CORRECCIÓN: Manejo de 401 y 403
+        if (res.status === 401 || res.status === 403) {
             onLogout();
-            onClose();
+            onClose(); // Cerramos el modal para evitar errores visuales
             return null;
         }
         return res;

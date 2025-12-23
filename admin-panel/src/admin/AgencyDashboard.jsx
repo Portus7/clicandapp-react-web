@@ -46,13 +46,14 @@ export default function AgencyDashboard({ token, onLogout }) {
             }
         });
 
-        if (res.status === 401) {
-            onLogout();
+        // 🔥 CORRECCIÓN: Agregamos "|| res.status === 403"
+        // Esto detecta tanto sesión perdida (401) como token expirado (403)
+        if (res.status === 401 || res.status === 403) {
+            onLogout(); // Esto limpia el localStorage y te manda al login
             throw new Error("Sesión expirada");
         }
         return res;
     };
-
     // --- FUNCIONES DE CARGA (MOVIDAS ARRIBA PARA EVITAR HOISTING ERROR) ---
     const refreshData = async () => {
         if (!AGENCY_ID) { setLoading(false); return; }
