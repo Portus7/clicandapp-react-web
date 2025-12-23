@@ -4,6 +4,7 @@ import {
     X, Smartphone, Plus, Trash2, Settings, Tag,
     RefreshCw, Edit2, Loader2, User, Hash, Link2, MessageSquare, Users, AlertTriangle, Star, CheckCircle2
 } from 'lucide-react';
+import { useSocket } from '../hooks/useSocket'; // ✅ NUEVO: Importar Hook de Socket
 
 const API_URL = (import.meta.env.VITE_API_URL || "https://wa.clicandapp.com").replace(/\/$/, "");
 
@@ -20,6 +21,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
     const [groups, setGroups] = useState([]);
     const [loadingGroups, setLoadingGroups] = useState(false);
     const [deletingSlotId, setDeletingSlotId] = useState(null);
+
+    // ✅ NUEVO: Obtener instancia del socket
+    const socket = useSocket();
 
     const authFetch = async (endpoint, options = {}) => {
         const res = await fetch(`${API_URL}${endpoint}`, {
@@ -38,30 +42,41 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
         return res;
     };
 
+    // ✅ LÓGICA DE TIEMPO REAL (Reemplaza al Polling)
     useEffect(() => {
-        loadData();
-        const interval = setInterval(() => {
+        loadData(); // Carga inicial
 
-            (async () => {
-                try {
-                    const res = await fetch(`${API_URL}/agency/location-details/${location.location_id}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (res.ok) {
-                        const data = await res.json();
-                        setSlots(prev => {
-                            return data.slots || [];
-                        });
-                    }
-                } catch (e) { }
-            })();
-        }, 5000);
+        // Función para manejar eventos entrantes
+        const handleEvent = (payload) => {
+            // Solo actuar si el evento pertenece a ESTA ubicación
+            if (payload.locationId === location.location_id) {
+                // Si es un evento de conexión (open/close) o llega un QR, recargamos los datos
+                if (payload.type === 'connection' || payload.type === 'qr') {
+                    // Opcional: Podrías hacer un fetch más ligero solo de slots, 
+                    // pero loadData() es seguro y garantiza consistencia total.
+                    loadData();
+                }
+            }
+        };
 
-        return () => clearInterval(interval);
-    }, [location]);
+        // Suscribirse al evento
+        if (socket) {
+            socket.on('wa_event', handleEvent);
+        }
+
+        // Limpieza al desmontar
+        return () => {
+            if (socket) {
+                socket.off('wa_event', handleEvent);
+            }
+        };
+    }, [location, socket]);
 
     const loadData = async () => {
-        setLoading(true);
+        // No ponemos setLoading(true) aquí para evitar parpadeos en actualizaciones de socket
+        // Solo lo usamos si es la primera carga y no tenemos datos
+        if (slots.length === 0) setLoading(true);
+
         try {
             const [detailsRes, usersRes] = await Promise.all([
                 authFetch(`/agency/location-details/${location.location_id}`),
@@ -81,7 +96,9 @@ export default function LocationDetailsModal({ location, onClose, token, onLogou
                 setGhlUsers(users || []);
             }
         } catch (e) {
-            toast.error("Error cargando datos", { description: "Verifica tu conexión." });
+            console.error("Error cargando datos:", e);
+            // No mostramos toast de error en recargas automáticas para no molestar
+            if (slots.length === 0) toast.error("Error cargando datos", { description: "Verifica tu conexión." });
         } finally {
             setLoading(false);
         }
